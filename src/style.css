@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --tw-gradient-from: theme('colors.mocha.50');
+    --tw-gradient-to: theme('colors.mocha.100');
+  }
+
+  .dark {
+    --tw-gradient-from: theme('colors.mocha.900');
+    --tw-gradient-to: theme('colors.mocha.800');
+  }
+
+  body {
+    @apply bg-gradient-mocha min-h-screen text-mocha-700 dark:text-mocha-50 transition-colors duration-300;
+  }
+
+  /* Transition douce pour le mode sombre */
+  * {
+    @apply transition-colors duration-300;
+  }
+}
+
+@layer components {
+  /* Carte style Bento avec effet glassmorphism */
+  .bento-card {
+    @apply bg-white/90 dark:bg-mocha-800/90 
+           rounded-bento shadow-bento
+           border border-mocha-200/20 dark:border-mocha-700/20
+           backdrop-blur-glass
+           hover:shadow-bento-hover transition-all duration-300
+           hover:border-mocha-300/30 dark:hover:border-mocha-600/30;
+  }
+
+  /* Boutons */
+  .btn-primary {
+    @apply bg-mocha-600 text-mocha-50 
+           hover:bg-mocha-700 active:bg-mocha-800
+           dark:bg-mocha-500 dark:hover:bg-mocha-600 dark:active:bg-mocha-700
+           transition-all duration-200 
+           rounded-lg px-4 py-2 
+           focus:outline-none focus:ring-2 focus:ring-mocha-500 focus:ring-opacity-50
+           transform hover:scale-105 active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply bg-mocha-100 text-mocha-700 
+           hover:bg-mocha-200 active:bg-mocha-300
+           dark:bg-mocha-700 dark:text-mocha-100 
+           dark:hover:bg-mocha-600 dark:active:bg-mocha-500
+           transition-all duration-200 
+           rounded-lg px-4 py-2 
+           focus:outline-none focus:ring-2 focus:ring-mocha-300 focus:ring-opacity-50
+           transform hover:scale-105 active:scale-95;
+  }
+
+  /* Champs de formulaire */
+  .input-mocha {
+    @apply bg-white dark:bg-mocha-800 
+           border border-mocha-200 dark:border-mocha-700
+           focus:border-mocha-500 dark:focus:border-mocha-400
+           focus:ring-2 focus:ring-mocha-500/50 dark:focus:ring-mocha-400/50
+           rounded-lg px-3 py-2 
+           text-mocha-700 dark:text-mocha-100
+           placeholder-mocha-400 dark:placeholder-mocha-500;
+  }
+
+  /* Navigation */
+  .nav-link {
+    @apply px-4 py-2 rounded-lg
+           text-mocha-700 dark:text-mocha-300
+           hover:bg-mocha-100 dark:hover:bg-mocha-700
+           transition-all duration-200;
+  }
+
+  .nav-link-active {
+    @apply bg-mocha-100 text-mocha-800
+           dark:bg-mocha-700 dark:text-mocha-100;
+  }
+
+  /* Badges */
+  .badge {
+    @apply px-2 py-1 rounded-full text-xs font-medium;
+  }
+
+  .badge-premium {
+    @apply bg-gradient-to-r from-amber-400 to-amber-600 text-mocha-50;
+  }
+
+  .badge-new {
+    @apply bg-gradient-to-r from-emerald-400 to-emerald-600 text-mocha-50;
+  }
+
+  /* Animations */
+  .fade-enter-active,
+  .fade-leave-active {
+    @apply transition-opacity duration-300;
+  }
+
+  .fade-enter-from,
+  .fade-leave-to {
+    @apply opacity-0;
+  }
+
+  .slide-enter-active,
+  .slide-leave-active {
+    @apply transition-all duration-300;
+  }
+
+  .slide-enter-from,
+  .slide-leave-to {
+    @apply transform translate-x-full opacity-0;
+  }
+
+  /* Loader */
+  .loader {
+    @apply w-6 h-6 border-2 border-mocha-200 border-t-mocha-500
+           rounded-full animate-spin;
+  }
+}
+
+/* Scrollbar personnalisée */
+::-webkit-scrollbar {
+  @apply w-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-mocha-100 dark:bg-mocha-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-mocha-300 dark:bg-mocha-600 rounded-full
+         hover:bg-mocha-400 dark:hover:bg-mocha-500
+         transition-colors duration-200;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Animations pour les cartes et sections */
+.animate-on-scroll {
+  @apply opacity-0 translate-y-8 transition-all duration-700 ease-out;
+}
+
+.animate-in {
+  @apply opacity-100 translate-y-0;
+}
