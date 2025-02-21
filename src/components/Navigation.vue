@@ -190,9 +190,22 @@ const userInitials = computed(() => {
 })
 
 const handleLogout = async () => {
-  authStore.logout()
-  router.push('/')
-  isProfileMenuOpen.value = false
+  try {
+    // Fermer d'abord le menu du profil
+    isProfileMenuOpen.value = false
+    
+    // Effectuer la déconnexion via le store
+    await authStore.logout()
+    
+    // Redirection vers la page d'accueil (landing page)
+    router.push('/')
+    
+    // Optionnel: Afficher une notification de déconnexion réussie
+    // Si vous avez un système de notification global
+  } catch (error) {
+    console.error('Erreur lors de la déconnexion:', error)
+    // Gérer l'erreur si nécessaire
+  }
 }
 
 const toggleMenu = () => {

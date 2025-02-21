@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { apiService } from '../api/config'
 
 export interface SubscriptionPlan {
   id: string
@@ -59,22 +60,74 @@ export const useSubscriptionStore = defineStore('subscription', () => {
   ])
 
   const currentPlan = ref<string>('free')
+  const isLoading = ref(false)
+  const error = ref<string | null>(null)
 
   const getCurrentPlan = computed(() => {
     return plans.value.find(plan => plan.id === currentPlan.value)
   })
 
+  async function fetchCurrentPlan() {
+    try {
+      isLoading.value = true
+      const response = await apiService.payment.getPaymentHistory()
+      const activeSub = response.data.activeSubscription
+      if (activeSub) {
+        currentPlan.value = activeSub.planId
+      }
+    } catch (err) {
+      console.error('Failed to fetch subscription:', err)
+      error.value = 'Erreur lors du chargement de l\'abonnement'
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function subscribe(planId: string) {
+    try {
+      isLoading.value = true
+      await apiService.payment.createSubscription({ planId })
+      currentPlan.value = planId
+      return true
+    } catch (err) {
+      console.error('Subscription failed:', err)
+      error.value = 'Erreur lors de la souscription'
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function cancelSubscription() {
+    try {
+      isLoading.value = true
+      await apiService.payment.cancelSubscription()
+      currentPlan.value = 'free'
+      return true
+    } catch (err) {
+      console.error('Cancellation failed:', err)
+      error.value = 'Erreur lors de l\'annulation'
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   const canAccessRecipe = (recipeId: number) => {
     const plan = getCurrentPlan.value
     if (!plan) return false
-    // Logique pour vérifier si la recette est accessible avec l'abonnement actuel
-    return true
+    return plan.recipeAccess >= recipeId || plan.recipeAccess === Infinity
   }
 
   return {
     plans,
     currentPlan,
+    isLoading,
+    error,
     getCurrentPlan,
+    fetchCurrentPlan,
+    subscribe,
+    cancelSubscription,
     canAccessRecipe
   }
 })

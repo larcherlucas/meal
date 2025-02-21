@@ -124,34 +124,6 @@
             </div>
           </button>
 
-          <div class="relative">
-            <div class="absolute inset-0 flex items-center">
-              <div class="w-full border-t border-mocha-300 dark:border-mocha-600"></div>
-            </div>
-            <div class="relative flex justify-center text-sm">
-              <span class="px-2 bg-white dark:bg-mocha-800 text-mocha-500">ou</span>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              class="flex items-center justify-center px-4 py-2 border border-mocha-300 dark:border-mocha-600 rounded-lg text-sm font-medium text-mocha-700 dark:text-mocha-200 hover:bg-mocha-50 dark:hover:bg-mocha-700"
-              @click="handleGoogleLogin"
-              :disabled="isLoading"
-            >
-              <img src="/google.svg" alt="Google" class="h-5 w-5 mr-2" />
-              Google
-            </button>
-            <button
-              type="button"
-              class="flex items-center justify-center px-4 py-2 border border-mocha-300 dark:border-mocha-600 rounded-lg text-sm font-medium text-mocha-700 dark:text-mocha-200 hover:bg-mocha-50 dark:hover:bg-mocha-700"
-            >
-              <img src="/apple.svg" alt="Apple" class="h-5 w-5 mr-2" />
-              Apple
-            </button>
-          </div>
-
           <p class="text-center text-sm text-mocha-600 dark:text-mocha-300">
             Pas encore de compte ?
             <router-link 
@@ -203,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useVuelidate } from '@vuelidate/core'
@@ -242,71 +214,77 @@ const notification = ref<{
   message: string
 } | null>(null)
 
-// Vérifie si l'email existe dans la base de données
-const checkEmailExists = async (email: string): Promise<boolean> => {
-  try {
-    const response = await fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`)
-    const data = await response.json()
-    return data.exists
-  } catch (error) {
-    console.error('Error checking email:', error)
-    return false
-  }
-}
-
 const handleSubmit = async () => {
-  emailError.value = ''
-  passwordError.value = ''
-  
-  const isValid = await v$.value.$validate()
-  if (!isValid) return
-
-  // Vérifier les tentatives de connexion
-  const currentTime = Date.now()
-  if (currentTime - lastAttemptTime.value < 15000) { // 15 secondes
-    loginAttempts.value++
-    if (loginAttempts.value >= 5) {
-      showAccountVerification.value = true
-      loginAttempts.value = 0 // Réinitialiser le compteur
-      return
-    }
-  } else {
-    loginAttempts.value = 1
-  }
-  lastAttemptTime.value = currentTime
-
-  isLoading.value = true
-  notification.value = null
-
   try {
-    // Vérifier si l'email existe
-    const emailExists = await checkEmailExists(formData.value.email)
-    if (!emailExists) {
-      emailError.value = 'Mail inconnu'
-      isLoading.value = false
-      return
-    }
+    emailError.value = ''
+    passwordError.value = ''
+    notification.value = null
+    
+    const isValid = await v$.value.$validate()
+    if (!isValid) return
 
-    const success = await authStore.login(formData.value)
+    // Vérifier les tentatives de connexion
+    const currentTime = Date.now()
+    if (currentTime - lastAttemptTime.value < 15000) {
+      loginAttempts.value++
+      if (loginAttempts.value >= 5) {
+        showAccountVerification.value = true
+        loginAttempts.value = 0
+        return
+      }
+    } else {
+      loginAttempts.value = 1
+    }
+    lastAttemptTime.value = currentTime
+
+    isLoading.value = true
+
+    const success = await authStore.login({
+      email: formData.value.email,
+      password: formData.value.password
+    })
+
     if (success) {
       notification.value = {
         type: 'success',
         title: 'Connexion réussie',
         message: 'Vous allez être redirigé...'
       }
+
+      // Gestion du "Se souvenir de moi" 
+      if (rememberMe.value) {
+        localStorage.setItem('rememberedEmail', formData.value.email)
+      } else {
+        localStorage.removeItem('rememberedEmail')
+      }
+
       setTimeout(() => {
         const redirectPath = route.query.redirect?.toString() || '/'
         router.push(redirectPath)
       }, 1500)
-    } else {
-      passwordError.value = 'Mot de passe incorrect'
     }
+  } catch (error: any) {
+    console.error('Login error:', error)
     
-  } catch (error) {
-    notification.value = {
-      type: 'error',
-      title: 'Erreur',
-      message: 'Une erreur est survenue lors de la connexion'
+    // Gestion des erreurs spécifiques en fonction de votre store
+    const errorMessage = error.message || 'Une erreur est survenue'
+    
+    if (errorMessage.includes('Email ou mot de passe incorrect')) {
+      passwordError.value = 'Mot de passe incorrect'
+    } else if (errorMessage.includes('Email') || errorMessage.toLowerCase().includes('mail')) {
+      emailError.value = 'Mail inconnu'
+    } else if (errorMessage.includes('désactivé')) {
+      notification.value = {
+        type: 'error',
+        title: 'Compte désactivé',
+        message: 'Votre compte a été désactivé. Veuillez contacter le support.'
+      }
+    } else {
+      notification.value = {
+        type: 'error',
+        title: 'Erreur',
+        message: errorMessage
+      }
     }
   } finally {
     isLoading.value = false
@@ -317,31 +295,15 @@ const handleForgotPassword = () => {
   router.push('/auth/forgot-password')
 }
 
-const handleGoogleLogin = async () => {
-  isLoading.value = true
-  notification.value = null
-
-  try {
-    const success = await authStore.loginWithGoogle()
-    if (success) {
-      notification.value = {
-        type: 'success',
-        title: 'Connexion réussie',
-        message: 'Vous allez être redirigé...'
-      }
-      setTimeout(() => {
-        const redirectPath = route.query.redirect?.toString() || '/'
-        router.push(redirectPath)
-      }, 1500)
-    }
-  } catch (error) {
-    notification.value = {
-      type: 'error',
-      title: 'Erreur',
-      message: 'Une erreur est survenue lors de la connexion avec Google'
-    }
-  } finally {
-    isLoading.value = false
+// Charger l'email mémorisé si "Se souvenir de moi" était activé
+const initRememberedEmail = () => {
+  const rememberedEmail = localStorage.getItem('rememberedEmail')
+  if (rememberedEmail) {
+    formData.value.email = rememberedEmail
+    rememberMe.value = true
   }
 }
+
+// Exécuter au montage du composant
+initRememberedEmail()
 </script>

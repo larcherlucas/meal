@@ -1,118 +1,98 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import axios from 'axios'
-import { jwtDecode } from 'jwt-decode'
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+import axios from 'axios';
 
-interface User {
-  id: string
-  email: string
-  firstName: string
-  lastName: string
-  role: 'admin' | 'user'
-  household?: {
-    adults: number
-    childrenOver3: number
-    childrenUnder3: number
-    babies: number
-  }
-  subscription?: {
-    isActive: boolean
-    plan: string
-    expiresAt: string
-  }
+// Create an axios instance with the base URL
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1',
+  withCredentials: true
+});
+
+interface LoginCredentials {
+  email: string;
+  password: string;
 }
 
-// Compte administrateur par défaut
-const defaultAdmin = {
-  email: 'larcher.lucas@hotmail.fr',
-  password: 'MotdepasseL987!',
-  firstName: 'Lucas',
-  lastName: 'Larcher',
-  role: 'admin',
-  subscription: {
-    isActive: true,
-    plan: 'Premium',
-    expiresAt: '2025-12-31' // Exemple de date d'expiration
-  }
+interface User {
+  id: string;
+  email: string;
+  role: string;
+  subscription_status?: string;
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(localStorage.getItem('token'))
-  const user = ref<User | null>(null)
+  const token = ref<string | null>(localStorage.getItem('token'));
+  const user = ref<User | null>(null);
+  
+  const isAuthenticated = computed(() => !!token.value);
+  const isAdmin = computed(() => user.value?.role === 'admin');
+  const hasActiveSubscription = computed(() => user.value?.subscription_status === 'active');
 
-  const isAuthenticated = computed(() => !!token.value)
-  const isAdmin = computed(() => user.value?.role === 'admin')
-  const hasActiveSubscription = computed(() => user.value?.subscription?.isActive ?? false)
+  const setToken = (newToken: string) => {
+    token.value = newToken;
+    localStorage.setItem('token', newToken);
+    api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+  };
 
-  async function login(credentials: { email: string; password: string }) {
+  const login = async (credentials: LoginCredentials): Promise<boolean> => {
     try {
-      // Simulation de l'authentification pour le compte admin
-      if (credentials.email === defaultAdmin.email && credentials.password === defaultAdmin.password) {
-        const mockToken = 'admin-token'
-        setToken(mockToken)
-        user.value = defaultAdmin as User
-        return true
+      const response = await api.post('/login', credentials);
+      
+      // Vérifier la structure de la réponse selon votre API
+      if (response.data?.data?.token) {
+        setToken(response.data.data.token);
+        user.value = response.data.data.user;
+        return true;
       }
-
-      const response = await axios.post('/api/auth/login', credentials)
-      setToken(response.data.token)
-      await fetchUser()
-      return true
-    } catch (error) {
-      console.error('Login failed:', error)
-      return false
+      
+      throw new Error('Format de réponse invalide');
+    } catch (error: any) {
+      console.error('Login failed:', error);
+      
+      if (error.response?.status === 401) {
+        throw new Error('Email ou mot de passe incorrect');
+      } else if (error.response?.status === 403) {
+        throw new Error('Votre compte a été désactivé');
+      } else if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      
+      throw new Error('Une erreur est survenue lors de la connexion');
     }
-  }
+  };
 
-  async function register(userData: any) {
+  const logout = async (): Promise<void> => {
     try {
-      const response = await axios.post('/api/auth/register', userData)
-      setToken(response.data.token)
-      await fetchUser()
-      return true
-    } catch (error) {
-      console.error('Registration failed:', error)
-      return false
+      await api.post('/logout');
+    } finally {
+      token.value = null;
+      user.value = null;
+      localStorage.removeItem('token');
+      delete api.defaults.headers.common['Authorization'];
     }
-  }
+  };
 
-  function setToken(newToken: string) {
-    token.value = newToken
-    localStorage.setItem('token', newToken)
-    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
-  }
-
-  async function fetchUser() {
+  const fetchUser = async (): Promise<void> => {
+    if (!token.value) return;
+    
     try {
-      const response = await axios.get('/api/user/profile')
-      user.value = response.data
+      const response = await api.get('/auth/verify-token');
+      if (response.data?.data?.user) {
+        user.value = response.data.data.user;
+      } else {
+        throw new Error('Invalid user data format');
+      }
     } catch (error) {
-      console.error('Failed to fetch user:', error)
+      console.error('Failed to fetch user:', error);
+      await logout();
+      throw error;
     }
-  }
-
-  async function updateProfile(profileData: Partial<User>) {
-    try {
-      const response = await axios.put('/api/user/profile', profileData)
-      user.value = response.data
-      return true
-    } catch (error) {
-      console.error('Failed to update profile:', error)
-      throw error
-    }
-  }
-
-  function logout() {
-    token.value = null
-    user.value = null
-    localStorage.removeItem('token')
-    delete axios.defaults.headers.common['Authorization']
-  }
+  };
 
   // Initialize
   if (token.value) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-    fetchUser()
+    api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`;
+    fetchUser().catch(() => logout());
   }
 
   return {
@@ -122,9 +102,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     hasActiveSubscription,
     login,
-    register,
     logout,
-    fetchUser,
-    updateProfile
-  }
-})
+    fetchUser
+  };
+});
