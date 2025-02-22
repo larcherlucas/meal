@@ -67,7 +67,7 @@ const startTrial = () => {
   if (authStore.isAuthenticated) {
     router.push('/menu')
   } else {
-    router.push('/auth/register')
+    router.push('/signup')
   }
 }
 </script>

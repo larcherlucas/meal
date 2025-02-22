@@ -3,38 +3,21 @@ import { ref } from 'vue'
 import { useForm } from 'vee-validate'
 import * as yup from 'yup'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-vue-next'
+import { useSignupStore } from '../../stores/signup'
+import { useRouter } from 'vue-router'
 
-// Interfaces
-interface LoginCredentials {
-  email: string;
-  password: string;
-}
+const router = useRouter()
+const signupStore = useSignupStore()
 
-interface User {
-  id: string;
-  email: string;
-  username: string;
-  role: 'admin' | 'user';
-  household?: {
-    adults: number;
-    childrenOver3: number;
-    childrenUnder3: number;
-    babies: number;
-  };
-  subscription?: {
-    isActive: boolean;
-    plan: string;
-    expiresAt: string;
-  };
-}
-
-// Form validation schema
 const schema = yup.object({
-  username: yup.string().required('Le nom d\'utilisateur est requis').min(3, '3 caractères minimum'),
-  email: yup.string().required('L\'email est requis').email('Email invalide'),
+  username: yup.string()
+    .required('Le nom d\'utilisateur est requis')
+    .min(3, '3 caractères minimum'),
+  email: yup.string()
+    .required('L\'email est requis')
+    .email('Format d\'email invalide (exemple: nom@domaine.com)')
 })
 
-// Form setup with initial values
 const { handleSubmit, errors, values, setFieldValue } = useForm({
   validationSchema: schema,
   initialValues: {
@@ -43,7 +26,6 @@ const { handleSubmit, errors, values, setFieldValue } = useForm({
   }
 })
 
-// Password validation
 const password = ref('')
 const confirmPassword = ref('')
 const passwordErrors = ref<string[]>([])
@@ -57,11 +39,14 @@ const validatePassword = () => {
   if (pass.length < 8) {
     passwordErrors.value.push('8 caractères minimum')
   }
-  if ((pass.match(/[0-9]/g) || []).length < 3) {
-    passwordErrors.value.push('3 chiffres minimum')
+  if (!/[A-Z]/.test(pass)) {
+    passwordErrors.value.push('Au moins une lettre majuscule')
+  }
+  if (!/[0-9]/.test(pass)) {
+    passwordErrors.value.push('Au moins un chiffre')
   }
   if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass)) {
-    passwordErrors.value.push('1 caractère spécial minimum')
+    passwordErrors.value.push('Au moins un caractère spécial (!@#$%^&*()_+-=[]{};\':"|,.<>/?)')
   }
 }
 
@@ -72,7 +57,6 @@ const validateConfirmPassword = () => {
   }
 }
 
-// Password visibility toggles
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
 
@@ -84,7 +68,6 @@ const togglePassword = (field: 'password' | 'confirm') => {
   }
 }
 
-// Form submission
 const onSubmit = handleSubmit(async (formValues) => {
   submissionAttempted.value = true
   validatePassword()
@@ -92,19 +75,35 @@ const onSubmit = handleSubmit(async (formValues) => {
   
   if (passwordErrors.value.length || confirmPasswordErrors.value.length) return
 
-  const userData = {
+  const payload = {
     ...formValues,
     password: password.value
   }
-  
-  console.log('Form submitted:', userData)
-  // Ici, vous pouvez appeler votre store pour l'inscription
+
+  const success = await signupStore.initiateSignup(payload)
+  if (success) {
+    router.push('/home')
+  }
 })
+
+// Validation en temps réel de l'email
+const validateEmail = (email: string) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!email) {
+    setFieldValue('email', '')
+    return 'L\'email est requis'
+  }
+  if (!emailRegex.test(email)) {
+    return 'Format d\'email invalide (exemple: nom@domaine.com)'
+  }
+  setFieldValue('email', email)
+  return ''
+}
 </script>
 
 <template>
   <div class="min-h-screen bg-gradient-mocha flex flex-col lg:flex-row">
-    <!-- Form Section - Now Primary Focus -->
+    <!-- Form Section -->
     <div class="w-full lg:w-2/3 p-6 lg:p-12 flex items-center justify-center order-2 lg:order-1">
       <div class="w-full max-w-2xl">
         <div class="bg-white/95 dark:bg-mocha-800/95 backdrop-blur-glass
@@ -134,14 +133,18 @@ const onSubmit = handleSubmit(async (formValues) => {
                               group-hover:text-mocha-600 transition-colors duration-200"
                         size="20" />
                   <input
-                    v-model="values.username"
+                    :value="values.username"
+                    @input="setFieldValue('username', $event.target.value)"
                     type="text"
                     class="input-mocha"
                     :class="{ 'border-red-500': errors.username && submissionAttempted }"
                     placeholder="Votre nom d'utilisateur"
                   />
                 </div>
-                <p v-if="errors.username && submissionAttempted" class="text-red-500 text-sm">Requis</p>
+                <p v-if="errors.username && submissionAttempted" 
+                   class="text-red-500 text-sm mt-1">
+                  {{ errors.username }}
+                </p>
               </div>
 
               <!-- Email field -->
@@ -154,17 +157,24 @@ const onSubmit = handleSubmit(async (formValues) => {
                               group-hover:text-mocha-600 transition-colors duration-200"
                         size="20" />
                   <input
-                    v-model="values.email"
+                    :value="values.email"
+                    @input="(e) => { 
+                      const error = validateEmail(e.target.value);
+                      if (!error) setFieldValue('email', e.target.value);
+                    }"
                     type="email"
                     class="input-mocha"
-                    :class="{ 'border-red-500': errors.email && submissionAttempted }"
+                    :class="{ 'border-red-500': errors.email }"
                     placeholder="Votre email"
                   />
                 </div>
-                <p v-if="errors.email && submissionAttempted" class="text-red-500 text-sm">Requis</p>
+                <p v-if="errors.email" 
+                   class="text-red-500 text-sm mt-1">
+                  {{ errors.email }}
+                </p>
               </div>
 
-              <!-- Password field -->
+              <!-- Password field avec exigences visibles -->
               <div class="space-y-2">
                 <label class="block text-sm font-medium text-mocha-700 dark:text-mocha-200">
                   Mot de passe
@@ -177,7 +187,7 @@ const onSubmit = handleSubmit(async (formValues) => {
                     v-model="password"
                     :type="showPassword ? 'text' : 'password'"
                     class="input-mocha"
-                    :class="{ 'border-red-500': passwordErrors.length > 0 }"
+                    :class="{ 'border-red-500': passwordErrors.length > 0 && submissionAttempted }"
                     placeholder="Votre mot de passe"
                     @input="validatePassword"
                   />
@@ -191,9 +201,32 @@ const onSubmit = handleSubmit(async (formValues) => {
                     <EyeOff v-else size="20" />
                   </button>
                 </div>
-                <div v-if="passwordErrors.length" class="space-y-1">
-                  <p v-for="error in passwordErrors" :key="error"
-                     class="text-red-500 text-sm">{{ error }}</p>
+                <!-- Affichage des exigences du mot de passe -->
+                <div class="mt-2 space-y-1">
+                  <p class="text-sm" :class="{ 
+                    'text-green-500': password.length >= 8,
+                    'text-red-500': password.length < 8 && submissionAttempted
+                  }">
+                    ✓ 8 caractères minimum
+                  </p>
+                  <p class="text-sm" :class="{ 
+                    'text-green-500': /[A-Z]/.test(password),
+                    'text-red-500': !/[A-Z]/.test(password) && submissionAttempted
+                  }">
+                    ✓ Au moins une majuscule
+                  </p>
+                  <p class="text-sm" :class="{ 
+                    'text-green-500': /[0-9]/.test(password),
+                    'text-red-500': !/[0-9]/.test(password) && submissionAttempted
+                  }">
+                    ✓ Au moins un chiffre
+                  </p>
+                  <p class="text-sm" :class="{ 
+                    'text-green-500': /[!@#$%^&*()_+\-=\[\]{};':&quot;\\|,.<>\/?]/.test(password),
+                    'text-red-500': !/[!@#$%^&*()_+\-=\[\]{};':&quot;\\|,.<>\/?]/.test(password) && submissionAttempted
+                  }">
+                    ✓ Au moins un caractère spécial
+                  </p>
                 </div>
               </div>
 
@@ -210,7 +243,7 @@ const onSubmit = handleSubmit(async (formValues) => {
                     v-model="confirmPassword"
                     :type="showConfirmPassword ? 'text' : 'password'"
                     class="input-mocha"
-                    :class="{ 'border-red-500': confirmPasswordErrors.length > 0 }"
+                    :class="{ 'border-red-500': confirmPasswordErrors.length > 0 && submissionAttempted }"
                     placeholder="Confirmez votre mot de passe"
                     @input="validateConfirmPassword"
                   />
@@ -224,11 +257,16 @@ const onSubmit = handleSubmit(async (formValues) => {
                     <EyeOff v-else size="20" />
                   </button>
                 </div>
-                <div v-if="confirmPasswordErrors.length" class="space-y-1">
-                  <p v-for="error in confirmPasswordErrors" :key="error"
-                     class="text-red-500 text-sm">{{ error }}</p>
-                </div>
+                <p v-if="confirmPasswordErrors.length && submissionAttempted" 
+                   class="text-red-500 text-sm mt-1">
+                  {{ confirmPasswordErrors[0] }}
+                </p>
               </div>
+            </div>
+
+            <!-- Error message from store -->
+            <div v-if="signupStore.error" class="mt-4">
+              <p class="text-red-500 text-sm text-center">{{ signupStore.error }}</p>
             </div>
 
             <!-- Submit Button -->
@@ -238,83 +276,117 @@ const onSubmit = handleSubmit(async (formValues) => {
                      transform hover:-translate-y-1 hover:shadow-bento-hover active:translate-y-0
                      transition-all duration-400 ease-bounce-soft focus:outline-none focus:ring-2
                      focus:ring-mocha-500 focus:ring-offset-2 dark:focus:ring-offset-mocha-800
-                     text-lg font-medium"
+                     text-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="signupStore.isLoading"
             >
-              Créer mon compte
+              <span v-if="signupStore.isLoading">Création en cours...</span>
+              <span v-else>Créer mon compte</span>
             </button>
 
             <!-- Login Link -->
             <p class="text-center mt-6 text-mocha-600 dark:text-mocha-300">
               Déjà inscrit ?
-              <a href="#" class="text-mocha-800 dark:text-mocha-200
-                                hover:text-mocha-600 dark:hover:text-mocha-300
-                                font-medium ml-2">
+              <router-link 
+                to="/login" 
+                class="text-mocha-800 dark:text-mocha-200
+                       hover:text-mocha-600 dark:hover:text-mocha-300
+                       font-medium transition-colors duration-200"
+              >
                 Connectez-vous
-              </a>
+              </router-link>
             </p>
           </form>
         </div>
       </div>
     </div>
 
-    <!-- Features/Testimonials Section -->
+    <!-- Features Section -->
     <div class="w-full lg:w-1/3 bg-gradient-to-br from-mocha-600/90 to-mocha-800/90
                 p-6 lg:p-12 flex items-center order-1 lg:order-2">
       <div class="w-full space-y-8 h-full flex flex-col justify-between">
-        <div class="text-center lg:text-left">
-          <h2 class="text-2xl font-bold text-white mb-4">
-            {{ showFeatures ? 'Pourquoi choisir Menu Planner ?' : 'Témoignages' }}
+        <div class="space-y-8">
+          <h2 class="text-2xl font-bold text-white text-center lg:text-left">
+            Pourquoi choisir Menu Planner ?
           </h2>
-        </div>
 
-        <!-- Transition between Features and Testimonials -->
-        <transition name="fade" mode="out-in">
-          <div v-if="showFeatures" key="features" class="flex-grow flex items-center">
-            <!-- Features Grid -->
-            <div class="grid grid-cols-1 gap-6 w-full">
-              <div v-for="(feature, index) in features" :key="feature.title"
-                   class="group p-6 rounded-bento bg-white/10 backdrop-blur-glass
-                          hover:bg-white/20 transition-all duration-500
-                          transform hover:-translate-y-1 flex-grow"
-                   :style="{ animationDelay: `${index * 100}ms` }">
-                <div class="flex items-center space-x-4">
-                  <div class="flex-shrink-0">
-                    <component :is="feature.icon"
-                              class="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 class="text-lg font-medium text-white">{{ feature.title }}</h3>
-                    <p class="text-mocha-200 mt-1">{{ feature.description }}</p>
-                  </div>
-                </div>
-              </div>
+          <!-- Features List -->
+          <div class="grid grid-cols-1 gap-6">
+            <div class="group p-6 rounded-bento bg-white/10 backdrop-blur-glass
+                        hover:bg-white/20 transition-all duration-500
+                        transform hover:-translate-y-1">
+              <h3 class="text-lg font-medium text-white mb-2">
+                Planification simplifiée
+              </h3>
+              <p class="text-mocha-200">
+                Organisez vos repas hebdomadaires en quelques clics
+              </p>
+            </div>
+
+            <div class="group p-6 rounded-bento bg-white/10 backdrop-blur-glass
+                        hover:bg-white/20 transition-all duration-500
+                        transform hover:-translate-y-1">
+              <h3 class="text-lg font-medium text-white mb-2">
+                Recettes personnalisées
+              </h3>
+              <p class="text-mocha-200">
+                Des suggestions adaptées à vos préférences
+              </p>
+            </div>
+
+            <div class="group p-6 rounded-bento bg-white/10 backdrop-blur-glass
+                        hover:bg-white/20 transition-all duration-500
+                        transform hover:-translate-y-1">
+              <h3 class="text-lg font-medium text-white mb-2">
+                Liste de courses intelligente
+              </h3>
+              <p class="text-mocha-200">
+                Générez automatiquement votre liste de courses hebdomadaire
+              </p>
             </div>
           </div>
-          <div v-else key="testimonials" class="flex-grow flex items-center">
-            <!-- Testimonials Grid -->
-            <div class="grid grid-cols-1 gap-6 w-full">
-              <div v-for="testimonial in testimonials" :key="testimonial.name"
-                   class="group p-6 rounded-bento bg-white/10 backdrop-blur-glass
-                          hover:bg-white/20 transition-all duration-500
-                          transform hover:-translate-y-1 flex-grow">
-                <div class="flex items-center space-x-4">
-                  <img :src="testimonial.image" alt="Testimonial Image" class="w-12 h-12 rounded-full">
-                  <div>
-                    <h3 class="text-lg font-medium text-white">{{ testimonial.name }}</h3>
-                    <p class="text-mocha-200 mt-1">{{ testimonial.role }}</p>
-                    <p class="text-mocha-200 mt-1">{{ testimonial.text }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </transition>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.bg-gradient-mocha {
+  @apply bg-gradient-to-br from-mocha-50 to-mocha-100 dark:from-mocha-900 dark:to-mocha-800;
+}
+
+.bg-gradient-mocha-accent {
+  @apply bg-gradient-to-br from-mocha-500 to-mocha-600 hover:from-mocha-600 hover:to-mocha-700;
+}
+
+.shadow-glass {
+  @apply shadow-lg shadow-mocha-800/10 dark:shadow-mocha-800/20;
+}
+
+.shadow-bento-hover {
+  @apply shadow-xl shadow-mocha-800/20;
+}
+
+.rounded-bento {
+  @apply rounded-2xl;
+}
+
+.rounded-bento-lg {
+  @apply rounded-3xl;
+}
+
+.rounded-bento-sm {
+  @apply rounded-xl;
+}
+
+.backdrop-blur-glass {
+  @apply backdrop-blur-md;
+}
+
+.ease-bounce-soft {
+  @apply ease-out;
+}
+
 .input-mocha {
   @apply block w-full px-10 py-3 bg-white/50 dark:bg-mocha-700/50
          border border-mocha-300 dark:border-mocha-600
@@ -332,11 +404,30 @@ const onSubmit = handleSubmit(async (formValues) => {
   @apply text-mocha-600 dark:text-mocha-300;
 }
 
-/* Transition styles */
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 1s ease-in-out;
+/* Animation d'entrée pour le formulaire */
+.animate-scale-up {
+  animation: scaleUp 0.5s ease-out;
 }
-.fade-enter, .fade-leave-to {
-  opacity: 0;
+
+@keyframes scaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
-</style>
+
+/* Transitions features/testimonials */
+.fade-enter-active,
+.fade-leave-active {
+  @apply transition-opacity duration-300;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  @apply opacity-0;
+}
+</style> 

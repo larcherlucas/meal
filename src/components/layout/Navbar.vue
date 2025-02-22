@@ -12,8 +12,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
 
-const navigateToAuth = (path: string) => {
-  router.push(`/auth/${path}`)
+const navigateToAuth = (path: 'login' | 'signup') => {
+  router.push({ name: path })
 }
 </script>
 
@@ -43,7 +43,7 @@ const navigateToAuth = (path: string) => {
         <div v-if="!authStore.isAuthenticated">
           <MochaButton 
             variant="text" 
-            @click="navigateToAuth('register')"
+            @click="navigateToAuth('signup')"
             class="mr-2"
           >
             S'inscrire
@@ -60,7 +60,7 @@ const navigateToAuth = (path: string) => {
         <MochaButton 
           v-else 
           variant="primary" 
-          @click="router.push('/dashboard')"
+          @click="router.push('/home')"
         >
           Mon espace
         </MochaButton>

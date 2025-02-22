@@ -94,7 +94,7 @@
           <!-- Bouton Connexion -->
           <router-link
             v-else
-            to="/auth/login"
+            to="/login"
             class="btn-primary"
           >
             Connexion

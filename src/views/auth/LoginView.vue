@@ -127,7 +127,7 @@
           <p class="text-center text-sm text-mocha-600 dark:text-mocha-300">
             Pas encore de compte ?
             <router-link 
-              to="/auth/register" 
+              to="/signup" 
               class="font-medium text-mocha-600 hover:text-mocha-500 dark:text-mocha-300 dark:hover:text-mocha-200"
             >
               S'inscrire

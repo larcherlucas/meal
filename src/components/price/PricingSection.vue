@@ -63,7 +63,7 @@ const plans: PricingPlan[] = [
 const handlePlanSelection = (planId: string) => {
   if (!authStore.isAuthenticated) {
     router.push({
-      path: '/auth/register',
+      path: '/signup',
       query: { plan: planId } // Optionnel: pour pré-sélectionner le plan après inscription
     })
   } else {

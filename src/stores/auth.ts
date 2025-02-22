@@ -76,7 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (!token.value) return;
     
     try {
-      const response = await api.get('/auth/verify-token');
+      const response = await api.get('/verify-token');
       if (response.data?.data?.user) {
         user.value = response.data.data.user;
       } else {

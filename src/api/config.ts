@@ -1,6 +1,4 @@
-// src/api/config.ts
 import axios, { AxiosError } from 'axios';
-import { useRouter } from 'vue-router';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -22,15 +20,18 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const router = useRouter();
-
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      router.push('/login');
+      // Au lieu d'utiliser useRouter ici, on peut soit :
+      // 1. Émettre un événement personnalisé
+      window.dispatchEvent(new CustomEvent('unauthorized'));
+      // 2. Ou simplement rediriger
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
+
 
 // API Services correspondant à vos routes backend
 export const apiService = {
