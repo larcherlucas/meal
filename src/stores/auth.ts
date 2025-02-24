@@ -1,108 +1,173 @@
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import axios from 'axios';
+// src/stores/auth.ts
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import router from '@/router'
+import api, { apiService } from '@/api/config'
 
-// Create an axios instance with the base URL
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1',
-  withCredentials: true
-});
+interface User {
+  id: string;
+  email: string;
+  role?: string;
+  subscription?: {
+    isActive: boolean;
+  };
+  // autres propriétés utilisateur
+}
 
 interface LoginCredentials {
   email: string;
   password: string;
 }
 
-interface User {
-  id: string;
-  email: string;
-  role: string;
-  subscription_status?: string;
-}
+// Variable pour suivre si une initialisation est en cours
+let isInitializing = false;
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(localStorage.getItem('token'));
-  const user = ref<User | null>(null);
+  const user = ref<User | null>(null)
+  const token = ref<string | null>(localStorage.getItem('token'))
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+  const isInitialized = ref(false)
+  const isVerified = ref(false)
   
-  const isAuthenticated = computed(() => !!token.value);
-  const isAdmin = computed(() => user.value?.role === 'admin');
-  const hasActiveSubscription = computed(() => user.value?.subscription_status === 'active');
+  const hasActiveSubscription = computed(() => user.value?.subscription?.isActive || false)
+  const isAuthenticated = computed(() => !!user.value && !!token.value && isVerified.value)
+  const isAdmin = computed(() => user.value?.role === 'admin')
 
-  const setToken = (newToken: string) => {
-    token.value = newToken;
-    localStorage.setItem('token', newToken);
-    api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-  };
-
-  const login = async (credentials: LoginCredentials): Promise<boolean> => {
-    try {
-      const response = await api.post('/login', credentials);
-      
-      // Vérifier la structure de la réponse selon votre API
-      if (response.data?.data?.token) {
-        setToken(response.data.data.token);
-        user.value = response.data.data.user;
-        return true;
-      }
-      
-      throw new Error('Format de réponse invalide');
-    } catch (error: any) {
-      console.error('Login failed:', error);
-      
-      if (error.response?.status === 401) {
-        throw new Error('Email ou mot de passe incorrect');
-      } else if (error.response?.status === 403) {
-        throw new Error('Votre compte a été désactivé');
-      } else if (error.response?.data?.message) {
-        throw new Error(error.response.data.message);
-      }
-      
-      throw new Error('Une erreur est survenue lors de la connexion');
-    }
-  };
-
-  const logout = async (): Promise<void> => {
-    try {
-      await api.post('/logout');
-    } finally {
-      token.value = null;
-      user.value = null;
-      localStorage.removeItem('token');
-      delete api.defaults.headers.common['Authorization'];
-    }
-  };
-
-  const fetchUser = async (): Promise<void> => {
-    if (!token.value) return;
+  // Nouvelle fonction qui combine initializeAuth, verifyToken et fetchUser
+  const initialize = async () => {
+    if (isInitializing) return;
+    isInitializing = true;
     
     try {
-      const response = await api.get('/verify-token');
-      if (response.data?.data?.user) {
-        user.value = response.data.data.user;
-      } else {
-        throw new Error('Invalid user data format');
+      const savedToken = localStorage.getItem('token')
+      if (savedToken) {
+        token.value = savedToken
+        const isValid = await verifyToken()
+        if (isValid) {
+          await fetchUser()
+        }
       }
-    } catch (error) {
-      console.error('Failed to fetch user:', error);
-      await logout();
-      throw error;
+    } catch (err) {
+      console.error('Erreur d\'initialisation:', err)
+    } finally {
+      isInitialized.value = true
+      isInitializing = false
     }
-  };
+  }
 
-  // Initialize
-  if (token.value) {
-    api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`;
-    fetchUser().catch(() => logout());
+  const initializeAuth = async () => {
+    // Maintient la compatibilité avec votre App.vue actuel
+    return initialize()
+  }
+
+  const verifyToken = async () => {
+    if (!token.value) return false
+    try {
+      await apiService.account.verifyToken()
+      isVerified.value = true
+      return true
+    } catch (err) {
+      isVerified.value = false
+      token.value = null
+      localStorage.removeItem('token')
+      return false
+    }
+  }
+
+  const fetchUser = async () => {
+    if (!token.value) return
+
+    try {
+      const response = await apiService.account.getOne('me')
+      user.value = response.data
+    } catch (err) {
+      console.error('Erreur lors de la récupération du profil:', err)
+      error.value = 'Erreur lors de la récupération du profil'
+    }
+  }
+
+  const signup = async (userData: any) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await apiService.auth.signup(userData)
+      token.value = response.data.token
+      localStorage.setItem('token', token.value)
+      isVerified.value = true
+      await fetchUser()
+      router.push('/profile') // Redirection vers le profil après inscription
+      return true
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Erreur lors de l\'inscription'
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const login = async (credentials: LoginCredentials) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await apiService.auth.login(credentials)
+      token.value = response.data.token
+      localStorage.setItem('token', token.value)
+      isVerified.value = true
+      await fetchUser()
+      router.push('/home') // Redirection vers home après connexion
+      return true
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Erreur de connexion'
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Variable pour suivre si une déconnexion est en cours
+  let isLoggingOut = false;
+
+  const logout = async () => {
+    if (isLoggingOut) return;
+    isLoggingOut = true;
+    
+    try {
+      // Seulement appeler l'API de déconnexion si on a un token valide
+      if (token.value && isVerified.value) {
+        await apiService.auth.logout()
+      }
+    } catch (err) {
+      console.error('Erreur lors de la déconnexion:', err)
+    } finally {
+      // Toujours nettoyer les données locales
+      user.value = null
+      token.value = null
+      isVerified.value = false
+      localStorage.removeItem('token')
+      router.push('/login')
+      isLoggingOut = false
+    }
   }
 
   return {
-    token,
     user,
+    token,
+    loading,
+    error,
+    isInitialized,
+    isVerified,
     isAuthenticated,
     isAdmin,
     hasActiveSubscription,
+    initialize,
+    initializeAuth, // Pour compatibilité avec votre App.vue existant
+    verifyToken,
+    fetchUser,
+    signup,
     login,
-    logout,
-    fetchUser
-  };
-});
+    logout
+  }
+})

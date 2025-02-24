@@ -1,34 +1,41 @@
-import axios, { AxiosError } from 'axios';
+import axios, { type AxiosError } from 'axios'
+import { useAuthStore } from '@/stores/auth'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
   }
-});
+})
 
-// Intercepteur pour gérer les tokens d'authentification
+// Variable pour suivre si une déconnexion est en cours
+let isLoggingOut = false
+
+// Intercepteurs
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const authStore = useAuthStore()
+  if (authStore.token) {
+    config.headers.Authorization = `Bearer ${authStore.token}`
   }
-  return config;
-});
+  return config
+})
 
-// Intercepteur pour gérer les erreurs
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      // Au lieu d'utiliser useRouter ici, on peut soit :
-      // 1. Émettre un événement personnalisé
-      window.dispatchEvent(new CustomEvent('unauthorized'));
-      // 2. Ou simplement rediriger
-      window.location.href = '/login';
+    // Vérifier si l'URL de la requête n'est pas déjà '/logout' ET qu'une déconnexion n'est pas déjà en cours
+    if (error.response?.status === 401 && error.config.url !== '/logout' && !isLoggingOut) {
+      isLoggingOut = true
+      try {
+        const authStore = useAuthStore()
+        await authStore.logout()
+        window.location.href = '/login'
+      } finally {
+        isLoggingOut = false
+      }
     }
-    return Promise.reject(error);
+    return Promise.reject(error)
   }
 );
 
