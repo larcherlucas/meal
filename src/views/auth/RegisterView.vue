@@ -106,16 +106,13 @@ const validateEmail = (email: string) => {
     <!-- Form Section -->
     <div class="w-full lg:w-2/3 p-6 lg:p-12 flex items-center justify-center order-2 lg:order-1">
       <div class="w-full max-w-2xl">
-        <div class="bg-white/95 dark:bg-mocha-800/95 backdrop-blur-glass
-                    shadow-glass rounded-bento-lg p-8 lg:p-12 space-y-8
-                    animate-scale-up">
+        <div class="bento-card animate-scale-up">
           <!-- Header -->
           <div class="text-center mb-10">
-            <h1 class="text-4xl lg:text-5xl font-bold text-mocha-800 dark:text-mocha-100
-                       tracking-tight mb-4">
+            <h1 class="heading-1 mb-4">
               Menu Planner
             </h1>
-            <p class="text-lg text-mocha-600 dark:text-mocha-300">
+            <p class="text-body-lg">
               Créez votre compte et commencez à planifier vos repas
             </p>
           </div>
@@ -125,22 +122,18 @@ const validateEmail = (email: string) => {
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <!-- Username field -->
               <div class="space-y-2">
-                <label class="block text-sm font-medium text-mocha-700 dark:text-mocha-200">
+                <label class="block text-sm font-medium text-mocha-700 dark:text-mocha-200 flex items-center gap-2">
+                  <User size="16" class="text-mocha-500" />
                   Nom d'utilisateur
                 </label>
-                <div class="relative group">
-                  <User class="absolute left-3 top-1/2 -translate-y-1/2 text-mocha-400
-                              group-hover:text-mocha-600 transition-colors duration-200"
-                        size="20" />
-                  <input
-                    :value="values.username"
-                    @input="setFieldValue('username', $event.target.value)"
-                    type="text"
-                    class="input-mocha"
-                    :class="{ 'border-red-500': errors.username && submissionAttempted }"
-                    placeholder="Votre nom d'utilisateur"
-                  />
-                </div>
+                <input
+                  :value="values.username"
+                  @input="setFieldValue('username', $event.target.value)"
+                  type="text"
+                  class="input-mocha"
+                  :class="{ 'border-red-500': errors.username && submissionAttempted }"
+                  placeholder="Votre nom d'utilisateur"
+                />
                 <p v-if="errors.username && submissionAttempted" 
                    class="text-red-500 text-sm mt-1">
                   {{ errors.username }}
@@ -149,25 +142,21 @@ const validateEmail = (email: string) => {
 
               <!-- Email field -->
               <div class="space-y-2">
-                <label class="block text-sm font-medium text-mocha-700 dark:text-mocha-200">
+                <label class="block text-sm font-medium text-mocha-700 dark:text-mocha-200 flex items-center gap-2">
+                  <Mail size="16" class="text-mocha-500" />
                   Email
                 </label>
-                <div class="relative group">
-                  <Mail class="absolute left-3 top-1/2 -translate-y-1/2 text-mocha-400
-                              group-hover:text-mocha-600 transition-colors duration-200"
-                        size="20" />
-                  <input
-                    :value="values.email"
-                    @input="(e) => { 
-                      const error = validateEmail(e.target.value);
-                      if (!error) setFieldValue('email', e.target.value);
-                    }"
-                    type="email"
-                    class="input-mocha"
-                    :class="{ 'border-red-500': errors.email }"
-                    placeholder="Votre email"
-                  />
-                </div>
+                <input
+                  :value="values.email"
+                  @input="(e) => { 
+                    const error = validateEmail(e.target.value);
+                    if (!error) setFieldValue('email', e.target.value);
+                  }"
+                  type="email"
+                  class="input-mocha"
+                  :class="{ 'border-red-500': errors.email }"
+                  placeholder="Votre email"
+                />
                 <p v-if="errors.email" 
                    class="text-red-500 text-sm mt-1">
                   {{ errors.email }}
@@ -176,17 +165,15 @@ const validateEmail = (email: string) => {
 
               <!-- Password field avec exigences visibles -->
               <div class="space-y-2">
-                <label class="block text-sm font-medium text-mocha-700 dark:text-mocha-200">
+                <label class="block text-sm font-medium text-mocha-700 dark:text-mocha-200 flex items-center gap-2">
+                  <Lock size="16" class="text-mocha-500" />
                   Mot de passe
                 </label>
-                <div class="relative group">
-                  <Lock class="absolute left-3 top-1/2 -translate-y-1/2 text-mocha-400
-                              group-hover:text-mocha-600 transition-colors duration-200"
-                        size="20" />
+                <div class="relative">
                   <input
                     v-model="password"
                     :type="showPassword ? 'text' : 'password'"
-                    class="input-mocha"
+                    class="input-mocha pr-10"
                     :class="{ 'border-red-500': passwordErrors.length > 0 && submissionAttempted }"
                     placeholder="Votre mot de passe"
                     @input="validatePassword"
@@ -195,7 +182,7 @@ const validateEmail = (email: string) => {
                     type="button"
                     @click="togglePassword('password')"
                     class="absolute right-3 top-1/2 -translate-y-1/2 text-mocha-400
-                           hover:text-mocha-600 transition-colors duration-200 focus:outline-none"
+                           hover:text-mocha-600 transition-all duration-300 focus:outline-none"
                   >
                     <Eye v-if="!showPassword" size="20" />
                     <EyeOff v-else size="20" />
@@ -203,25 +190,25 @@ const validateEmail = (email: string) => {
                 </div>
                 <!-- Affichage des exigences du mot de passe -->
                 <div class="mt-2 space-y-1">
-                  <p class="text-sm" :class="{ 
+                  <p class="text-caption" :class="{ 
                     'text-green-500': password.length >= 8,
                     'text-red-500': password.length < 8 && submissionAttempted
                   }">
                     ✓ 8 caractères minimum
                   </p>
-                  <p class="text-sm" :class="{ 
+                  <p class="text-caption" :class="{ 
                     'text-green-500': /[A-Z]/.test(password),
                     'text-red-500': !/[A-Z]/.test(password) && submissionAttempted
                   }">
                     ✓ Au moins une majuscule
                   </p>
-                  <p class="text-sm" :class="{ 
+                  <p class="text-caption" :class="{ 
                     'text-green-500': /[0-9]/.test(password),
                     'text-red-500': !/[0-9]/.test(password) && submissionAttempted
                   }">
                     ✓ Au moins un chiffre
                   </p>
-                  <p class="text-sm" :class="{ 
+                  <p class="text-caption" :class="{ 
                     'text-green-500': /[!@#$%^&*()_+\-=\[\]{};':&quot;\\|,.<>\/?]/.test(password),
                     'text-red-500': !/[!@#$%^&*()_+\-=\[\]{};':&quot;\\|,.<>\/?]/.test(password) && submissionAttempted
                   }">
@@ -232,17 +219,15 @@ const validateEmail = (email: string) => {
 
               <!-- Confirm Password field -->
               <div class="space-y-2">
-                <label class="block text-sm font-medium text-mocha-700 dark:text-mocha-200">
+                <label class="block text-sm font-medium text-mocha-700 dark:text-mocha-200 flex items-center gap-2">
+                  <Lock size="16" class="text-mocha-500" />
                   Confirmer le mot de passe
                 </label>
-                <div class="relative group">
-                  <Lock class="absolute left-3 top-1/2 -translate-y-1/2 text-mocha-400
-                              group-hover:text-mocha-600 transition-colors duration-200"
-                        size="20" />
+                <div class="relative">
                   <input
                     v-model="confirmPassword"
                     :type="showConfirmPassword ? 'text' : 'password'"
-                    class="input-mocha"
+                    class="input-mocha pr-10"
                     :class="{ 'border-red-500': confirmPasswordErrors.length > 0 && submissionAttempted }"
                     placeholder="Confirmez votre mot de passe"
                     @input="validateConfirmPassword"
@@ -251,7 +236,7 @@ const validateEmail = (email: string) => {
                     type="button"
                     @click="togglePassword('confirm')"
                     class="absolute right-3 top-1/2 -translate-y-1/2 text-mocha-400
-                           hover:text-mocha-600 transition-colors duration-200 focus:outline-none"
+                           hover:text-mocha-600 transition-all duration-300 focus:outline-none"
                   >
                     <Eye v-if="!showConfirmPassword" size="20" />
                     <EyeOff v-else size="20" />
@@ -272,11 +257,7 @@ const validateEmail = (email: string) => {
             <!-- Submit Button -->
             <button
               type="submit"
-              class="w-full mt-8 px-6 py-4 text-white bg-gradient-mocha-accent rounded-bento
-                     transform hover:-translate-y-1 hover:shadow-bento-hover active:translate-y-0
-                     transition-all duration-400 ease-bounce-soft focus:outline-none focus:ring-2
-                     focus:ring-mocha-500 focus:ring-offset-2 dark:focus:ring-offset-mocha-800
-                     text-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              class="btn-primary w-full mt-8 py-4 text-lg font-medium transform hover:-translate-y-1 hover:shadow-bento-hover active:translate-y-0 transition-all duration-400 ease-bounce-soft"
               :disabled="signupStore.isLoading"
             >
               <span v-if="signupStore.isLoading">Création en cours...</span>
@@ -284,13 +265,13 @@ const validateEmail = (email: string) => {
             </button>
 
             <!-- Login Link -->
-            <p class="text-center mt-6 text-mocha-600 dark:text-mocha-300">
+            <p class="text-center mt-6 text-body-sm">
               Déjà inscrit ?
               <router-link 
                 to="/login" 
                 class="text-mocha-800 dark:text-mocha-200
                        hover:text-mocha-600 dark:hover:text-mocha-300
-                       font-medium transition-colors duration-200"
+                       font-medium transition-all duration-300"
               >
                 Connectez-vous
               </router-link>
@@ -305,7 +286,7 @@ const validateEmail = (email: string) => {
                 p-6 lg:p-12 flex items-center order-1 lg:order-2">
       <div class="w-full space-y-8 h-full flex flex-col justify-between">
         <div class="space-y-8">
-          <h2 class="text-2xl font-bold text-white text-center lg:text-left">
+          <h2 class="heading-2 text-white text-center lg:text-left">
             Pourquoi choisir Menu Planner ?
           </h2>
 
@@ -349,85 +330,3 @@ const validateEmail = (email: string) => {
     </div>
   </div>
 </template>
-
-<style scoped>
-.bg-gradient-mocha {
-  @apply bg-gradient-to-br from-mocha-50 to-mocha-100 dark:from-mocha-900 dark:to-mocha-800;
-}
-
-.bg-gradient-mocha-accent {
-  @apply bg-gradient-to-br from-mocha-500 to-mocha-600 hover:from-mocha-600 hover:to-mocha-700;
-}
-
-.shadow-glass {
-  @apply shadow-lg shadow-mocha-800/10 dark:shadow-mocha-800/20;
-}
-
-.shadow-bento-hover {
-  @apply shadow-xl shadow-mocha-800/20;
-}
-
-.rounded-bento {
-  @apply rounded-2xl;
-}
-
-.rounded-bento-lg {
-  @apply rounded-3xl;
-}
-
-.rounded-bento-sm {
-  @apply rounded-xl;
-}
-
-.backdrop-blur-glass {
-  @apply backdrop-blur-md;
-}
-
-.ease-bounce-soft {
-  @apply ease-out;
-}
-
-.input-mocha {
-  @apply block w-full px-10 py-3 bg-white/50 dark:bg-mocha-700/50
-         border border-mocha-300 dark:border-mocha-600
-         rounded-bento-sm backdrop-blur-glass
-         placeholder-mocha-400 dark:placeholder-mocha-500
-         text-mocha-800 dark:text-mocha-100
-         transition-all duration-200
-         focus:outline-none focus:ring-2 focus:ring-mocha-500 focus:border-transparent
-         dark:focus:ring-mocha-400
-         hover:border-mocha-400 dark:hover:border-mocha-500;
-}
-
-.input-mocha:hover + button,
-.input-mocha:focus + button {
-  @apply text-mocha-600 dark:text-mocha-300;
-}
-
-/* Animation d'entrée pour le formulaire */
-.animate-scale-up {
-  animation: scaleUp 0.5s ease-out;
-}
-
-@keyframes scaleUp {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Transitions features/testimonials */
-.fade-enter-active,
-.fade-leave-active {
-  @apply transition-opacity duration-300;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  @apply opacity-0;
-}
-</style> 

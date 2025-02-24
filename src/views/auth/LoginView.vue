@@ -1,9 +1,9 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-mocha-100 to-mocha-200 dark:from-mocha-800 dark:to-mocha-900 px-4">
+  <div class="min-h-screen flex items-center justify-center bg-gradient-mocha px-4">
     <div class="w-full max-w-md">
       <!-- Logo et Titre -->
       <div class="text-center mb-8">
-        <div class="inline-block p-4 rounded-full bg-white dark:bg-mocha-800 shadow-lg mb-4">
+        <div class="inline-block p-4 rounded-full bg-white/90 dark:bg-mocha-800/90 shadow-bento mb-4 backdrop-blur-glass">
           <div class="w-12 h-12 text-mocha-600 dark:text-mocha-300">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -11,16 +11,16 @@
             </svg>
           </div>
         </div>
-        <h1 class="text-3xl font-bold text-mocha-800 dark:text-mocha-50">Bienvenue</h1>
-        <p class="text-mocha-600 dark:text-mocha-300 mt-2">Connectez-vous à votre compte</p>
+        <h1 class="heading-2">Bienvenue</h1>
+        <p class="text-body mt-2">Connectez-vous à votre compte</p>
       </div>
 
       <!-- Formulaire -->
-      <div class="bento-card p-8">
+      <div class="bento-card">
         <form @submit.prevent="handleSubmit" class="space-y-6">
           <!-- Email -->
           <div>
-            <label for="email" class="block text-sm font-medium text-mocha-700 dark:text-mocha-200">
+            <label for="email" class="block text-body-sm font-medium text-mocha-700 dark:text-mocha-200">
               Email
             </label>
             <div class="mt-1 relative">
@@ -41,17 +41,17 @@
                 />
               </div>
             </div>
-            <p v-if="emailError" class="mt-2 text-sm text-red-600">
+            <p v-if="emailError" class="mt-2 text-caption text-red-600">
               {{ emailError }}
             </p>
-            <p v-else-if="v$.email.$error" class="mt-2 text-sm text-red-600">
+            <p v-else-if="v$.email.$error" class="mt-2 text-caption text-red-600">
               {{ v$.email.email.$message || 'Email invalide' }}
             </p>
           </div>
 
           <!-- Mot de passe -->
           <div>
-            <label for="password" class="block text-sm font-medium text-mocha-700 dark:text-mocha-200">
+            <label for="password" class="block text-body-sm font-medium text-mocha-700 dark:text-mocha-200">
               Mot de passe
             </label>
             <div class="mt-1 relative">
@@ -66,7 +66,7 @@
               />
               <button
                 type="button"
-                class="absolute inset-y-0 right-0 flex items-center pr-3 text-mocha-400 hover:text-mocha-500"
+                class="absolute inset-y-0 right-0 flex items-center pr-3 text-mocha-400 hover:text-mocha-500 transition-all duration-200"
                 @click="showPassword = !showPassword"
               >
                 <EyeIcon v-if="showPassword" class="h-5 w-5" aria-hidden="true" />
@@ -74,15 +74,15 @@
               </button>
             </div>
             <div class="flex items-center justify-between mt-2">
-              <p v-if="passwordError" class="text-sm text-red-600">
+              <p v-if="passwordError" class="text-caption text-red-600">
                 {{ passwordError }}
               </p>
-              <p v-else-if="v$.password.$error" class="text-sm text-red-600">
+              <p v-else-if="v$.password.$error" class="text-caption text-red-600">
                 {{ v$.password.required.$message || 'Mot de passe requis' }}
               </p>
               <button
                 type="button"
-                class="text-sm font-medium text-mocha-600 hover:text-mocha-500 dark:text-mocha-300 dark:hover:text-mocha-200"
+                class="text-caption font-medium text-mocha-600 hover:text-mocha-500 dark:text-mocha-300 dark:hover:text-mocha-200 transition-all duration-200"
                 @click="handleForgotPassword"
               >
                 Mot de passe oublié ?
@@ -97,9 +97,9 @@
                 id="remember-me"
                 v-model="rememberMe"
                 type="checkbox"
-                class="h-4 w-4 rounded border-mocha-300 text-mocha-600 focus:ring-mocha-500"
+                class="h-4 w-4 rounded border-mocha-300 text-mocha-600 focus:ring-mocha-500 transition-all duration-200"
               />
-              <label for="remember-me" class="ml-2 block text-sm text-mocha-700 dark:text-mocha-200">
+              <label for="remember-me" class="ml-2 block text-body-sm text-mocha-700 dark:text-mocha-200">
                 Se souvenir de moi
               </label>
             </div>
@@ -108,7 +108,7 @@
           <button
             type="submit"
             :disabled="isLoading"
-            class="w-full btn-primary relative"
+            class="btn-primary w-full relative"
           >
             <span :class="{ 'opacity-0': isLoading }">
               Se connecter
@@ -124,11 +124,11 @@
             </div>
           </button>
 
-          <p class="text-center text-sm text-mocha-600 dark:text-mocha-300">
+          <p class="text-center text-body-sm text-mocha-600 dark:text-mocha-300">
             Pas encore de compte ?
             <router-link 
               to="/signup" 
-              class="font-medium text-mocha-600 hover:text-mocha-500 dark:text-mocha-300 dark:hover:text-mocha-200"
+              class="font-medium text-mocha-600 hover:text-mocha-500 dark:text-mocha-300 dark:hover:text-mocha-200 transition-all duration-200"
             >
               S'inscrire
             </router-link>
@@ -147,24 +147,24 @@
     />
 
     <!-- Pop-up de vérification du compte -->
-    <div v-if="showAccountVerification" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-      <div class="bg-white dark:bg-mocha-800 p-6 rounded-lg shadow-xl max-w-md w-full">
-        <h2 class="text-xl font-bold text-mocha-800 dark:text-mocha-50 mb-4">
+    <div v-if="showAccountVerification" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center backdrop-blur-glass animate-fade-in">
+      <div class="bento-card p-6 max-w-md w-full animate-scale-up">
+        <h3 class="heading-3 mb-4">
           Est-ce vraiment votre compte ?
-        </h2>
-        <p class="text-mocha-600 dark:text-mocha-300 mb-6">
+        </h3>
+        <p class="text-body mb-6">
           Nous avons détecté plusieurs tentatives de connexion échouées. Si vous avez oublié vos identifiants, vous pouvez utiliser la fonction "Mot de passe oublié".
         </p>
         <div class="flex justify-end space-x-4">
           <button
             @click="showAccountVerification = false"
-            class="px-4 py-2 text-mocha-600 hover:text-mocha-500"
+            class="btn-secondary"
           >
             Fermer
           </button>
           <button
             @click="handleForgotPassword"
-            class="px-4 py-2 bg-mocha-600 text-white rounded-lg hover:bg-mocha-500"
+            class="btn-primary"
           >
             Réinitialiser le mot de passe
           </button>
@@ -173,7 +173,6 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'

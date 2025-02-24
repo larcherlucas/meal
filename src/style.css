@@ -2,77 +2,182 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ========= DESIGN TOKENS ========= */
 @layer base {
   :root {
+    /* Couleurs */
     --tw-gradient-from: theme('colors.mocha.50');
     --tw-gradient-to: theme('colors.mocha.100');
+    --accent-gradient-from: theme('colors.mocha.400');
+    --accent-gradient-to: theme('colors.mocha.500');
+    
+    /* Typographie */
+    --font-heading-weight: 700;
+    --font-subheading-weight: 600;
+    --font-body-weight: 400;
+    --font-medium-weight: 500;
+    
+    /* Transitions */
+    --transition-duration: 300ms;
+    
+    /* Corners */
+    --border-radius-base: 0.5rem;
+    --border-radius-bento: 1.5rem;
+    --border-radius-bento-sm: 1rem;
+    --border-radius-bento-lg: 2rem;
+    --border-radius-badge: 9999px;
+    
+    /* Shadows */
+    --shadow-bento: 0 4px 20px -2px rgba(0, 0, 0, 0.1);
+    --shadow-bento-hover: 0 8px 30px -2px rgba(0, 0, 0, 0.15);
+    --shadow-bento-active: 0 2px 10px -2px rgba(0, 0, 0, 0.1);
   }
-
+  
   .dark {
     --tw-gradient-from: theme('colors.mocha.900');
     --tw-gradient-to: theme('colors.mocha.800');
+    --accent-gradient-from: theme('colors.mocha.600');
+    --accent-gradient-to: theme('colors.mocha.700');
   }
-
+  
   body {
-    @apply bg-gradient-mocha min-h-screen text-mocha-700 dark:text-mocha-50 transition-colors duration-300;
+    @apply bg-gradient-mocha min-h-screen text-mocha-700 dark:text-mocha-50 
+           transition-colors duration-300 antialiased;
   }
-
-  /* Transition douce pour le mode sombre */
+  
   * {
     @apply transition-colors duration-300;
   }
 }
 
+/* ========= TYPOGRAPHIE ========= */
 @layer components {
-  /* Carte style Bento avec effet glassmorphism */
+  /* Headings */
+  .heading-1 {
+    @apply text-4xl md:text-5xl font-bold text-mocha-800 dark:text-mocha-50 leading-tight;
+  }
+  
+  .heading-2 {
+    @apply text-3xl md:text-4xl font-bold text-mocha-800 dark:text-mocha-50 leading-tight;
+  }
+  
+  .heading-3 {
+    @apply text-2xl md:text-3xl font-semibold text-mocha-700 dark:text-mocha-100 leading-snug;
+  }
+  
+  .heading-4 {
+    @apply text-xl md:text-2xl font-semibold text-mocha-700 dark:text-mocha-100 leading-snug;
+  }
+  
+  /* Body text */
+  .text-body-lg {
+    @apply text-lg md:text-xl text-mocha-700 dark:text-mocha-300 leading-relaxed;
+  }
+  
+  .text-body {
+    @apply text-base text-mocha-700 dark:text-mocha-300 leading-relaxed;
+  }
+  
+  .text-body-sm {
+    @apply text-sm text-mocha-600 dark:text-mocha-400 leading-normal;
+  }
+  
+  .text-caption {
+    @apply text-xs text-mocha-500 dark:text-mocha-400 leading-normal;
+  }
+}
+
+/* ========= COMPOSANTS ========= */
+@layer components {
+  /* Cards */
   .bento-card {
     @apply bg-white/90 dark:bg-mocha-800/90 
            rounded-bento shadow-bento
            border border-mocha-200/20 dark:border-mocha-700/20
            backdrop-blur-glass
-           hover:shadow-bento-hover transition-all duration-300
-           hover:border-mocha-300/30 dark:hover:border-mocha-600/30;
+           transition-all duration-300
+           hover:shadow-bento-hover 
+           hover:border-mocha-300/30 dark:hover:border-mocha-600/30
+           xs:p-4 sm:p-6 md:p-8;
+  }
+
+  /* Conteneur responsif */
+  .container-responsive {
+    @apply w-full mx-auto px-4
+           xs:max-w-xs sm:max-w-sm 
+           md:max-w-md lg:max-w-lg 
+           xl:max-w-xl 2xl:max-w-2xl;
+  }
+
+  /* Grille responsive */
+  .grid-responsive {
+    @apply grid gap-4
+           grid-cols-1 
+           sm:grid-cols-2 
+           lg:grid-cols-3 
+           xl:grid-cols-4;
   }
 
   /* Boutons */
+  .btn-base {
+    @apply rounded-lg px-4 py-2
+           transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-opacity-50
+           transform hover:scale-105 active:scale-95
+           disabled:opacity-50 disabled:cursor-not-allowed
+           xs:text-sm sm:text-base;
+  }
+
   .btn-primary {
-    @apply bg-mocha-600 text-mocha-50 
+    @apply btn-base
+           bg-mocha-600 text-mocha-50 
            hover:bg-mocha-700 active:bg-mocha-800
-           dark:bg-mocha-500 dark:hover:bg-mocha-600 dark:active:bg-mocha-700
-           transition-all duration-200 
-           rounded-lg px-4 py-2 
-           focus:outline-none focus:ring-2 focus:ring-mocha-500 focus:ring-opacity-50
-           transform hover:scale-105 active:scale-95;
+           dark:bg-mocha-500 dark:hover:bg-mocha-600 
+           dark:active:bg-mocha-700
+           focus:ring-mocha-500;
   }
 
   .btn-secondary {
-    @apply bg-mocha-100 text-mocha-700 
+    @apply btn-base
+           bg-mocha-100 text-mocha-700 
            hover:bg-mocha-200 active:bg-mocha-300
            dark:bg-mocha-700 dark:text-mocha-100 
            dark:hover:bg-mocha-600 dark:active:bg-mocha-500
-           transition-all duration-200 
-           rounded-lg px-4 py-2 
-           focus:outline-none focus:ring-2 focus:ring-mocha-300 focus:ring-opacity-50
-           transform hover:scale-105 active:scale-95;
+           focus:ring-mocha-300;
   }
 
-  /* Champs de formulaire */
+  /* Forms */
+  .input-base {
+    @apply w-full rounded-lg px-3 py-2
+           transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-opacity-50
+           disabled:opacity-50 disabled:cursor-not-allowed
+           xs:text-sm sm:text-base;
+  }
+
   .input-mocha {
-    @apply bg-white dark:bg-mocha-800 
+    @apply input-base
+           bg-white dark:bg-mocha-800 
            border border-mocha-200 dark:border-mocha-700
            focus:border-mocha-500 dark:focus:border-mocha-400
-           focus:ring-2 focus:ring-mocha-500/50 dark:focus:ring-mocha-400/50
-           rounded-lg px-3 py-2 
+           focus:ring-mocha-500/50 dark:focus:ring-mocha-400/50
            text-mocha-700 dark:text-mocha-100
            placeholder-mocha-400 dark:placeholder-mocha-500;
   }
 
   /* Navigation */
+  .nav-container {
+    @apply flex flex-col sm:flex-row
+           items-center justify-between
+           w-full gap-4 sm:gap-6;
+  }
+
   .nav-link {
     @apply px-4 py-2 rounded-lg
            text-mocha-700 dark:text-mocha-300
            hover:bg-mocha-100 dark:hover:bg-mocha-700
-           transition-all duration-200;
+           transition-all duration-200
+           xs:text-sm sm:text-base;
   }
 
   .nav-link-active {
@@ -82,70 +187,82 @@
 
   /* Badges */
   .badge {
-    @apply px-2 py-1 rounded-full text-xs font-medium;
+    @apply px-2 py-1 rounded-full 
+           text-xs font-medium
+           xs:text-xs sm:text-sm;
   }
 
   .badge-premium {
-    @apply bg-gradient-to-r from-amber-400 to-amber-600 text-mocha-50;
+    @apply badge
+           bg-gradient-to-r from-amber-400 to-amber-600 
+           text-mocha-50;
   }
 
   .badge-new {
-    @apply bg-gradient-to-r from-emerald-400 to-emerald-600 text-mocha-50;
+    @apply badge
+           bg-gradient-to-r from-emerald-400 to-emerald-600 
+           text-mocha-50;
   }
+}
 
+/* ========= UTILITAIRES ========= */
+@layer utilities {
   /* Animations */
-  .fade-enter-active,
-  .fade-leave-active {
-    @apply transition-opacity duration-300;
+  .animate-on-scroll {
+    @apply opacity-0 translate-y-8 
+           transition-all duration-700 ease-out;
   }
 
-  .fade-enter-from,
-  .fade-leave-to {
-    @apply opacity-0;
+  .animate-in {
+    @apply opacity-100 translate-y-0;
   }
 
-  .slide-enter-active,
-  .slide-leave-active {
-    @apply transition-all duration-300;
+  /* Media query utilities */
+  @screen xs {
+    .xs-only {
+      @apply block sm:hidden;
+    }
   }
 
-  .slide-enter-from,
-  .slide-leave-to {
-    @apply transform translate-x-full opacity-0;
+  @screen sm {
+    .sm-only {
+      @apply hidden xs:block md:hidden;
+    }
   }
 
-  /* Loader */
-  .loader {
-    @apply w-6 h-6 border-2 border-mocha-200 border-t-mocha-500
-           rounded-full animate-spin;
+  @screen md {
+    .md-only {
+      @apply hidden sm:block lg:hidden;
+    }
+  }
+
+  @screen lg {
+    .lg-only {
+      @apply hidden md:block xl:hidden;
+    }
   }
 }
 
-/* Scrollbar personnalisée */
-::-webkit-scrollbar {
-  @apply w-2;
+/* ========= PERSONNALISATIONS ========= */
+/* Custom scrollbar */
+@media (min-width: 640px) {
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-mocha-100 dark:bg-mocha-800;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-mocha-300 dark:bg-mocha-600 
+           rounded-full
+           hover:bg-mocha-400 dark:hover:bg-mocha-500
+           transition-colors duration-200;
+  }
 }
 
-::-webkit-scrollbar-track {
-  @apply bg-mocha-100 dark:bg-mocha-800;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-mocha-300 dark:bg-mocha-600 rounded-full
-         hover:bg-mocha-400 dark:hover:bg-mocha-500
-         transition-colors duration-200;
-}
-
-/* Smooth scroll */
+/* Smooth scroll behavior */
 html {
   scroll-behavior: smooth;
-}
-
-/* Animations pour les cartes et sections */
-.animate-on-scroll {
-  @apply opacity-0 translate-y-8 transition-all duration-700 ease-out;
-}
-
-.animate-in {
-  @apply opacity-100 translate-y-0;
 }

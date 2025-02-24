@@ -6,6 +6,14 @@ export default {
   ],
   darkMode: 'class',
   theme: {
+    screens: {
+      'xs': '375px',
+      'sm': '640px',
+      'md': '768px',
+      'lg': '1024px',
+      'xl': '1280px',
+      '2xl': '1536px',
+    },
     extend: {
       colors: {
         mocha: {
@@ -21,10 +29,16 @@ export default {
           900: '#362A1F',
         }
       },
+      spacing: {
+        '18': '4.5rem',
+        '68': '17rem',
+        '100': '25rem',
+        '128': '32rem',
+      },
       borderRadius: {
-        'bento': '1.5rem',
-        'bento-sm': '1rem',
-        'bento-lg': '2rem',
+        'bento': 'var(--border-radius-bento)',
+        'bento-sm': 'var(--border-radius-bento-sm)',
+        'bento-lg': 'var(--border-radius-bento-lg)',
       },
       backgroundImage: {
         'gradient-mocha': 'linear-gradient(135deg, var(--tw-gradient-from) 0%, var(--tw-gradient-to) 100%)',
@@ -61,9 +75,9 @@ export default {
         },
       },
       boxShadow: {
-        'bento': '0 4px 20px -2px rgba(0, 0, 0, 0.1)',
-        'bento-hover': '0 8px 30px -2px rgba(0, 0, 0, 0.15)',
-        'bento-active': '0 2px 10px -2px rgba(0, 0, 0, 0.1)',
+        'bento': 'var(--shadow-bento)',
+        'bento-hover': 'var(--shadow-bento-hover)',
+        'bento-active': 'var(--shadow-bento-active)',
         'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
         'inner-glow': 'inset 0 2px 4px 0 rgba(255, 255, 255, 0.05)',
       },
@@ -87,6 +101,12 @@ export default {
           '--tw-gradient-to': theme('colors.mocha.100'),
           '--accent-gradient-from': theme('colors.mocha.400'),
           '--accent-gradient-to': theme('colors.mocha.500'),
+          '--border-radius-bento': '1.5rem',
+          '--border-radius-bento-sm': '1rem',
+          '--border-radius-bento-lg': '2rem',
+          '--shadow-bento': '0 4px 20px -2px rgba(0, 0, 0, 0.1)',
+          '--shadow-bento-hover': '0 8px 30px -2px rgba(0, 0, 0, 0.15)',
+          '--shadow-bento-active': '0 2px 10px -2px rgba(0, 0, 0, 0.1)',
         },
         '.dark': {
           '--tw-gradient-from': theme('colors.mocha.900'),

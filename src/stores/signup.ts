@@ -2,8 +2,8 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { useAuthStore } from './auth';
 import { useUserPreferencesStore } from './userPreferences';
-import { apiService } from '../api/config'; // Utilise l'instance axios configurée
-import type { SignupForm, SignupPayload } from '../types';
+import { apiService } from '../api/config';
+import type { SignupForm } from '../types';
 
 export const useSignupStore = defineStore('signup', () => {
   const isLoading = ref(false);
@@ -37,12 +37,28 @@ export const useSignupStore = defineStore('signup', () => {
       const response = await apiService.auth.signup(payload);
       console.log('Réponse de l\'API:', response.data);
       
+      // Format de réponse attendu
       if (response.data?.token) {
         const authStore = useAuthStore();
         const preferencesStore = useUserPreferencesStore();
         
-        authStore.setToken(response.data.token);
+        authStore.token = response.data.token;
         authStore.user = response.data.user;
+        authStore.isVerified = true;
+        localStorage.setItem('token', response.data.token);
+        preferencesStore.initFromAuthStore();
+        
+        signupSuccess.value = true;
+        return true;
+      } else if (response.data?.data?.token) {
+        // Format alternatif possible
+        const authStore = useAuthStore();
+        const preferencesStore = useUserPreferencesStore();
+        
+        authStore.token = response.data.data.token;
+        authStore.user = response.data.data.user;
+        authStore.isVerified = true;
+        localStorage.setItem('token', response.data.data.token);
         preferencesStore.initFromAuthStore();
         
         signupSuccess.value = true;
@@ -53,12 +69,17 @@ export const useSignupStore = defineStore('signup', () => {
     } catch (err: any) {
       console.error('Erreur lors de l\'inscription:', err);
       
-      if (err.response?.status === 409) {
-        error.value = 'Cet email est déjà utilisé';
-      } else if (err.response?.data?.message) {
-        error.value = err.response.data.message;
+      // Détection améliorée des messages d'erreur
+      const errorResponse = err.response?.data;
+      const errorMessage = errorResponse?.message || errorResponse?.error || err.message;
+      
+      if (errorMessage.includes('déjà utilisé') || 
+          err.response?.status === 409) {
+        error.value = 'Cet email est déjà utilisé. Veuillez utiliser un autre email ou vous connecter.';
+      } else if (errorResponse?.message) {
+        error.value = errorResponse.message;
       } else {
-        error.value = 'Une erreur est survenue lors de l\'inscription';
+        error.value = 'Une erreur est survenue lors de l\'inscription. Veuillez réessayer.';
       }
       
       return false;
