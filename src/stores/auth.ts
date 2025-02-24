@@ -1,8 +1,8 @@
-// src/stores/auth.ts
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import router from '@/router'
-import api, { apiService } from '@/api/config'
+import { apiService } from '@/api/config'
+import { navigateTo } from '@/utils/router-helpers'
 
 interface User {
   id: string;
@@ -31,7 +31,15 @@ export const useAuthStore = defineStore('auth', () => {
   const isVerified = ref(false)
   
   const hasActiveSubscription = computed(() => user.value?.subscription?.isActive || false)
-  const isAuthenticated = computed(() => !!user.value && !!token.value && isVerified.value)
+  const isAuthenticated = computed(() => {
+    const hasToken = !!token.value
+    const hasVerification = isVerified.value
+    
+    console.log("État d'authentification:", { hasToken, hasUser: !!user.value, hasVerification })
+    
+    return hasToken && hasVerification
+  })
+  
   const isAdmin = computed(() => user.value?.role === 'admin')
 
   // Nouvelle fonction qui combine initializeAuth, verifyToken et fetchUser
@@ -57,7 +65,6 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const initializeAuth = async () => {
-    // Maintient la compatibilité avec votre App.vue actuel
     return initialize()
   }
 
@@ -68,6 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
       isVerified.value = true
       return true
     } catch (err) {
+      console.error('Erreur de vérification du token:', err)
       isVerified.value = false
       token.value = null
       localStorage.removeItem('token')
@@ -93,11 +101,23 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       const response = await apiService.auth.signup(userData)
-      token.value = response.data.token
-      localStorage.setItem('token', token.value)
+      
+      // S'assurer que le token est dans la bonne structure
+      const responseToken = response.data.token || response.data.data?.token
+      
+      if (!responseToken) {
+        throw new Error('Token non trouvé dans la réponse')
+      }
+      
+      token.value = responseToken
+      localStorage.setItem('token', responseToken)
+      
+      // Vérifiez immédiatement que le token a bien été stocké
+      const storedToken = localStorage.getItem('token')
+      console.log("Token stocké dans localStorage:", storedToken ? "Oui" : "Non", storedToken?.substr(0, 10) + "...")
+      
       isVerified.value = true
       await fetchUser()
-      router.push('/profile') // Redirection vers le profil après inscription
       return true
     } catch (err: any) {
       error.value = err.response?.data?.message || 'Erreur lors de l\'inscription'
@@ -110,16 +130,30 @@ export const useAuthStore = defineStore('auth', () => {
   const login = async (credentials: LoginCredentials) => {
     loading.value = true
     error.value = null
-
+  
     try {
       const response = await apiService.auth.login(credentials)
-      token.value = response.data.token
-      localStorage.setItem('token', token.value)
+      
+      // Vérifier la structure de la réponse et récupérer le token
+      const responseToken = response.data.token || response.data.data?.token
+      
+      if (!responseToken) {
+        console.error("Structure de réponse inattendue:", response.data)
+        throw new Error('Token non trouvé dans la réponse')
+      }
+      
+      // Ces lignes sont critiques - assurez-vous qu'elles s'exécutent correctement
+      token.value = responseToken
+      localStorage.setItem('token', responseToken)
       isVerified.value = true
+      
+      // Vérifiez immédiatement que le token est bien défini
+      console.log("Token après login:", token.value ? "Défini" : "Non défini", token.value?.substr(0, 10) + "...")
+      
       await fetchUser()
-      router.push('/home') // Redirection vers home après connexion
       return true
     } catch (err: any) {
+      console.error('Erreur complète de connexion:', err)
       error.value = err.response?.data?.message || 'Erreur de connexion'
       return false
     } finally {
@@ -147,9 +181,11 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = null
       isVerified.value = false
       localStorage.removeItem('token')
-      router.push('/login')
       isLoggingOut = false
     }
+    
+    // Effectuer la redirection après le nettoyage et en dehors du bloc finally
+    await navigateTo('/login')
   }
 
   return {
@@ -163,7 +199,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     hasActiveSubscription,
     initialize,
-    initializeAuth, // Pour compatibilité avec votre App.vue existant
+    initializeAuth,
     verifyToken,
     fetchUser,
     signup,

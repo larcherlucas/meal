@@ -18,8 +18,7 @@ const authStore = useAuthStore()
 const themeStore = useThemeStore()
 
 const formData = ref({
-  firstName: authStore.user?.firstName || '',
-  lastName: authStore.user?.lastName || '',
+  username: authStore.user?.username || '',
   household: {
     adults: authStore.user?.household?.adults || 1,
     childrenOver3: authStore.user?.household?.childrenOver3 || 0,
@@ -85,8 +84,7 @@ const availableLanguages = [
 ]
 
 const rules = {
-  firstName: { required },
-  lastName: { required },
+  username: { required },
   household: {
     adults: { required, numeric, minValue: minValue(1) },
     childrenOver3: { required, numeric, minValue: minValue(0) },
@@ -198,37 +196,20 @@ const getPreferenceStatus = (food: string): 'liked' | 'disliked' | null => {
       <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow duration-300">
         <h2 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Mon Profil</h2>
         <form @submit.prevent="handleSubmit" class="space-y-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label for="firstName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Prénom
-              </label>
-              <input
-                id="firstName"
-                v-model="formData.firstName"
-                type="text"
-                class="mt-1 block w-full rounded-xl shadow-sm"
-                :class="inputError('firstName')"
-              />
-              <p v-if="v$.firstName.$error" class="mt-1 text-sm text-red-500">
-                Le prénom est requis
-              </p>
-            </div>
-            <div>
-              <label for="lastName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Nom
-              </label>
-              <input
-                id="lastName"
-                v-model="formData.lastName"
-                type="text"
-                class="mt-1 block w-full rounded-xl shadow-sm"
-                :class="inputError('lastName')"
-              />
-              <p v-if="v$.lastName.$error" class="mt-1 text-sm text-red-500">
-                Le nom est requis
-              </p>
-            </div>
+          <div>
+            <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Nom d'utilisateur
+            </label>
+            <input
+              id="username"
+              v-model="formData.username"
+              type="text"
+              class="mt-1 block w-full rounded-xl shadow-sm"
+              :class="inputError('username')"
+            />
+            <p v-if="v$.username.$error" class="mt-1 text-sm text-red-500">
+              Le nom d'utilisateur est requis
+            </p>
           </div>
           <button
             type="submit"
@@ -281,8 +262,10 @@ const getPreferenceStatus = (food: string): 'liked' | 'disliked' | null => {
         </div>
       </div>
 
+      <!-- Le reste du composant reste inchangé -->
       <!-- Card Composition du foyer -->
       <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <!-- Contenu inchangé -->
         <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Composition du foyer</h3>
         <div class="grid grid-cols-2 gap-4">
           <!-- Adultes -->
@@ -350,7 +333,6 @@ const getPreferenceStatus = (food: string): 'liked' | 'disliked' | null => {
           </div>
         </div>
       </div>
-
       <!-- Card Restrictions alimentaires -->
       <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow duration-300">
         <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Restrictions alimentaires</h3>

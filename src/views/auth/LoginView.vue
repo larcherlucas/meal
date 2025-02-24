@@ -173,8 +173,9 @@
     </div>
   </div>
 </template>
+
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useVuelidate } from '@vuelidate/core'
@@ -206,6 +207,7 @@ const passwordError = ref('')
 const loginAttempts = ref(0)
 const lastAttemptTime = ref(Date.now())
 const showAccountVerification = ref(false)
+const isNavigating = ref(false)
 
 const notification = ref<{
   type: 'success' | 'error'
@@ -214,6 +216,8 @@ const notification = ref<{
 } | null>(null)
 
 const handleSubmit = async () => {
+  if (isNavigating.value) return
+  
   try {
     emailError.value = ''
     passwordError.value = ''
@@ -238,12 +242,31 @@ const handleSubmit = async () => {
 
     isLoading.value = true
 
+    console.log("Tentative de connexion avec:", { 
+      email: formData.value.email,
+      password: formData.value.password.substring(0, 3) + "..." // Ne pas logger le mot de passe complet
+    })
+
     const success = await authStore.login({
       email: formData.value.email,
       password: formData.value.password
     })
 
+    // Après la connexion réussie
     if (success) {
+      // Vérifier que le token a été correctement défini
+      const storedToken = localStorage.getItem('token')
+      console.log("Token stocké dans localStorage après connexion:", storedToken ? "Oui" : "Non", storedToken?.substr(0, 10) + "...")
+      
+      if (!storedToken) {
+        throw new Error("Le token n'a pas été correctement stocké")
+      }
+      
+      console.log("Connexion réussie, préparation redirection vers:", route.query.redirect?.toString() || '/home')
+      
+      // Forcer une mise à jour de l'état d'authentification
+      authStore.isVerified = true
+      
       notification.value = {
         type: 'success',
         title: 'Connexion réussie',
@@ -257,18 +280,44 @@ const handleSubmit = async () => {
         localStorage.removeItem('rememberedEmail')
       }
 
-      setTimeout(() => {
-        const redirectPath = route.query.redirect?.toString() || '/'
-        router.push(redirectPath)
-      }, 1500)
+      // Ajout de logs pour déboguer
+      await nextTick()
+      console.log("État avant navigation:", {
+        isAuthenticated: authStore.isAuthenticated,
+        token: !!authStore.token,
+        isVerified: authStore.isVerified
+      })
+
+      // Utilisation de la navigation sécurisée
+      isNavigating.value = true
+      const redirectPath = route.query.redirect?.toString() || '/home'
+      
+      try {
+        // Délai court pour permettre au token d'être correctement enregistré
+        setTimeout(async () => {
+          try {
+            await router.push(redirectPath)
+            console.log("Navigation réussie vers:", redirectPath)
+          } catch (navError) {
+            console.error("Erreur de navigation:", navError)
+            window.location.href = redirectPath // Fallback en cas d'échec
+          } finally {
+            isNavigating.value = false
+          }
+        }, 300)
+      } catch (error) {
+        console.error("Erreur dans le timeout:", error)
+        isNavigating.value = false
+      }
     }
   } catch (error: any) {
     console.error('Login error:', error)
     
     // Gestion des erreurs spécifiques en fonction de votre store
-    const errorMessage = error.message || 'Une erreur est survenue'
+    const errorMessage = error.message || authStore.error || 'Une erreur est survenue'
     
-    if (errorMessage.includes('Email ou mot de passe incorrect')) {
+    if (errorMessage.includes('Email ou mot de passe incorrect') || 
+        errorMessage.includes('Mot de passe incorrect')) {
       passwordError.value = 'Mot de passe incorrect'
     } else if (errorMessage.includes('Email') || errorMessage.toLowerCase().includes('mail')) {
       emailError.value = 'Mail inconnu'
@@ -303,6 +352,11 @@ const initRememberedEmail = () => {
   }
 }
 
-// Exécuter au montage du composant
-initRememberedEmail()
+// Vérifier si l'utilisateur est déjà connecté
+onMounted(() => {
+  if (authStore.isAuthenticated) {
+    router.push('/home')
+  }
+  initRememberedEmail()
+})
 </script>

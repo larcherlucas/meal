@@ -3,6 +3,8 @@ import { ref } from 'vue';
 import { useAuthStore } from './auth';
 import { useUserPreferencesStore } from './userPreferences';
 import { apiService } from '../api/config';
+import router from '@/router';
+import { navigateTo } from '@/utils/router-helpers';
 import type { SignupForm } from '../types';
 
 export const useSignupStore = defineStore('signup', () => {
@@ -49,6 +51,10 @@ export const useSignupStore = defineStore('signup', () => {
         preferencesStore.initFromAuthStore();
         
         signupSuccess.value = true;
+        
+        // Redirection immédiate après inscription réussie (sans setTimeout)
+        await navigateTo('/profile');
+        
         return true;
       } else if (response.data?.data?.token) {
         // Format alternatif possible
@@ -62,6 +68,10 @@ export const useSignupStore = defineStore('signup', () => {
         preferencesStore.initFromAuthStore();
         
         signupSuccess.value = true;
+        
+        // Redirection immédiate après inscription réussie (sans setTimeout)
+        await navigateTo('/profile');
+        
         return true;
       }
       
