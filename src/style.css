@@ -8,8 +8,8 @@
     /* Couleurs */
     --tw-gradient-from: theme('colors.mocha.50');
     --tw-gradient-to: theme('colors.mocha.100');
-    --accent-gradient-from: theme('colors.mocha.400');
-    --accent-gradient-to: theme('colors.mocha.500');
+    --accent-gradient-from: theme('colors.mocha.300');
+    --accent-gradient-to: theme('colors.mocha.400');
     
     /* Typographie */
     --font-heading-weight: 700;
@@ -54,36 +54,36 @@
 @layer components {
   /* Headings */
   .heading-1 {
-    @apply text-4xl md:text-5xl font-bold text-mocha-800 dark:text-mocha-50 leading-tight;
+    @apply text-4xl md:text-5xl font-bold text-mocha-900 dark:text-mocha-50 leading-tight;
   }
   
   .heading-2 {
-    @apply text-3xl md:text-4xl font-bold text-mocha-800 dark:text-mocha-50 leading-tight;
+    @apply text-3xl md:text-4xl font-bold text-mocha-900 dark:text-mocha-50 leading-tight;
   }
   
   .heading-3 {
-    @apply text-2xl md:text-3xl font-semibold text-mocha-700 dark:text-mocha-100 leading-snug;
+    @apply text-2xl md:text-3xl font-semibold text-mocha-800 dark:text-mocha-100 leading-snug;
   }
   
   .heading-4 {
-    @apply text-xl md:text-2xl font-semibold text-mocha-700 dark:text-mocha-100 leading-snug;
+    @apply text-xl md:text-2xl font-semibold text-mocha-800 dark:text-mocha-100 leading-snug;
   }
   
   /* Body text */
   .text-body-lg {
-    @apply text-lg md:text-xl text-mocha-700 dark:text-mocha-300 leading-relaxed;
+    @apply text-lg md:text-xl text-mocha-700 dark:text-mocha-200 leading-relaxed;
   }
   
   .text-body {
-    @apply text-base text-mocha-700 dark:text-mocha-300 leading-relaxed;
+    @apply text-base text-mocha-700 dark:text-mocha-200 leading-relaxed;
   }
   
   .text-body-sm {
-    @apply text-sm text-mocha-600 dark:text-mocha-400 leading-normal;
+    @apply text-sm text-mocha-600 dark:text-mocha-300 leading-normal;
   }
   
   .text-caption {
-    @apply text-xs text-mocha-500 dark:text-mocha-400 leading-normal;
+    @apply text-xs text-mocha-500 dark:text-mocha-300 leading-normal;
   }
 }
 
@@ -91,13 +91,13 @@
 @layer components {
   /* Cards */
   .bento-card {
-    @apply bg-white/90 dark:bg-mocha-800/90 
+    @apply bg-white/90 dark:bg-mocha-900/90 
            rounded-bento shadow-bento
-           border border-mocha-200/20 dark:border-mocha-700/20
+           border border-mocha-200/20 dark:border-mocha-800/20
            backdrop-blur-glass
            transition-all duration-300
            hover:shadow-bento-hover 
-           hover:border-mocha-300/30 dark:hover:border-mocha-600/30
+           hover:border-mocha-300/30 dark:hover:border-mocha-700/30
            xs:p-4 sm:p-6 md:p-8;
   }
 
@@ -131,18 +131,18 @@
   .btn-primary {
     @apply btn-base
            bg-mocha-600 text-mocha-50 
-           hover:bg-mocha-700 active:bg-mocha-800
-           dark:bg-mocha-500 dark:hover:bg-mocha-600 
-           dark:active:bg-mocha-700
-           focus:ring-mocha-500;
+           hover:bg-mocha-700 active:bg-mocha-900
+           dark:bg-mocha-300 dark:hover:bg-mocha-400 
+           dark:active:bg-mocha-500
+           focus:ring-mocha-300;
   }
 
   .btn-secondary {
     @apply btn-base
            bg-mocha-100 text-mocha-700 
            hover:bg-mocha-200 active:bg-mocha-300
-           dark:bg-mocha-700 dark:text-mocha-100 
-           dark:hover:bg-mocha-600 dark:active:bg-mocha-500
+           dark:bg-mocha-800 dark:text-mocha-100 
+           dark:hover:bg-mocha-700 dark:active:bg-mocha-600
            focus:ring-mocha-300;
   }
 
@@ -157,12 +157,12 @@
 
   .input-mocha {
     @apply input-base
-           bg-white dark:bg-mocha-800 
-           border border-mocha-200 dark:border-mocha-700
-           focus:border-mocha-500 dark:focus:border-mocha-400
-           focus:ring-mocha-500/50 dark:focus:ring-mocha-400/50
+           bg-white dark:bg-mocha-900 
+           border border-mocha-200 dark:border-mocha-800
+           focus:border-mocha-300 dark:focus:border-mocha-300
+           focus:ring-mocha-300/50 dark:focus:ring-mocha-300/50
            text-mocha-700 dark:text-mocha-100
-           placeholder-mocha-400 dark:placeholder-mocha-500;
+           placeholder-mocha-400 dark:placeholder-mocha-400;
   }
 
   /* Navigation */
@@ -174,15 +174,15 @@
 
   .nav-link {
     @apply px-4 py-2 rounded-lg
-           text-mocha-700 dark:text-mocha-300
-           hover:bg-mocha-100 dark:hover:bg-mocha-700
+           text-mocha-700 dark:text-mocha-200
+           hover:bg-mocha-100 dark:hover:bg-mocha-800
            transition-all duration-200
            xs:text-sm sm:text-base;
   }
 
   .nav-link-active {
-    @apply bg-mocha-100 text-mocha-800
-           dark:bg-mocha-700 dark:text-mocha-100;
+    @apply bg-mocha-100 text-mocha-900
+           dark:bg-mocha-800 dark:text-mocha-100;
   }
 
   /* Badges */
@@ -194,13 +194,13 @@
 
   .badge-premium {
     @apply badge
-           bg-gradient-to-r from-amber-400 to-amber-600 
-           text-mocha-50;
+           bg-gradient-to-r from-mocha-300 to-mocha-400
+           text-mocha-900;
   }
 
   .badge-new {
     @apply badge
-           bg-gradient-to-r from-emerald-400 to-emerald-600 
+           bg-gradient-to-r from-mocha-600 to-mocha-700
            text-mocha-50;
   }
 }
@@ -251,13 +251,13 @@
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-mocha-100 dark:bg-mocha-800;
+    @apply bg-mocha-100 dark:bg-mocha-900;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-mocha-300 dark:bg-mocha-600 
+    @apply bg-mocha-300 dark:bg-mocha-700 
            rounded-full
-           hover:bg-mocha-400 dark:hover:bg-mocha-500
+           hover:bg-mocha-400 dark:hover:bg-mocha-600
            transition-colors duration-200;
   }
 }

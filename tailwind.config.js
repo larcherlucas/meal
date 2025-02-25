@@ -17,16 +17,16 @@ export default {
     extend: {
       colors: {
         mocha: {
-          50: '#F8F6F3',
-          100: '#F3EBDD',
-          200: '#E8DFD0',
-          300: '#D9CCBA',
-          400: '#C19A6B',
-          500: '#A67C52',
-          600: '#8B6544',
-          700: '#6F4E37',
-          800: '#4B382A',
-          900: '#362A1F',
+          50: '#FFF9F5',
+          100: '#FFEEDA',
+          200: '#FFDBB7',
+          300: '#F2AC57', // Orange
+          400: '#F08845',
+          500: '#E66B41',
+          600: '#D83324', // Rouge
+          700: '#592A0F', // Brun
+          800: '#6F7202', // Olive
+          900: '#590109', // Bordeaux foncé
         }
       },
       spacing: {
@@ -99,8 +99,8 @@ export default {
         ':root': {
           '--tw-gradient-from': theme('colors.mocha.50'),
           '--tw-gradient-to': theme('colors.mocha.100'),
-          '--accent-gradient-from': theme('colors.mocha.400'),
-          '--accent-gradient-to': theme('colors.mocha.500'),
+          '--accent-gradient-from': theme('colors.mocha.300'),
+          '--accent-gradient-to': theme('colors.mocha.400'),
           '--border-radius-bento': '1.5rem',
           '--border-radius-bento-sm': '1rem',
           '--border-radius-bento-lg': '2rem',
