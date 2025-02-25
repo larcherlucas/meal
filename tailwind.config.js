@@ -17,16 +17,16 @@ export default {
     extend: {
       colors: {
         mocha: {
-          50: '#FFF9F5',
-          100: '#FFEEDA',
-          200: '#FFDBB7',
-          300: '#F2AC57', // Orange
-          400: '#F08845',
-          500: '#E66B41',
-          600: '#D83324', // Rouge
-          700: '#592A0F', // Brun
-          800: '#6F7202', // Olive
-          900: '#590109', // Bordeaux foncé
+          50: '#FFF8F4',  // Blanc cassé crémeux (fond clair)
+          100: '#F5E8DD', // Beige très léger (fond secondaire)
+          200: '#E6D2C3', // Beige clair (bordures claires)
+          300: '#D2B8A4', // Taupe clair (accent doux)
+          400: '#B79680', // Caramel clair (accent secondaire)
+          500: '#9C7A62', // Caramel moyen (accent tertiaire)
+          600: '#7D5F4A', // Chocolat au lait (boutons primaires)
+          700: '#604A38', // Chocolat moyen (texte principal mode clair)
+          800: '#42332A', // Chocolat noir (texte secondaire mode sombre)
+          900: '#2A211D', // Espresso foncé (fond mode sombre)
         }
       },
       spacing: {
@@ -97,10 +97,10 @@ export default {
     function({ addBase, theme }) {
       addBase({
         ':root': {
-          '--tw-gradient-from': theme('colors.mocha.50'),
-          '--tw-gradient-to': theme('colors.mocha.100'),
-          '--accent-gradient-from': theme('colors.mocha.300'),
-          '--accent-gradient-to': theme('colors.mocha.400'),
+          '--tw-gradient-from': theme('colors.mocha.50'),    // Fond gradient clair (départ)
+          '--tw-gradient-to': theme('colors.mocha.100'),     // Fond gradient clair (arrivée)
+          '--accent-gradient-from': theme('colors.mocha.300'), // Accent gradient clair (départ)
+          '--accent-gradient-to': theme('colors.mocha.400'),   // Accent gradient clair (arrivée)
           '--border-radius-bento': '1.5rem',
           '--border-radius-bento-sm': '1rem',
           '--border-radius-bento-lg': '2rem',
@@ -109,10 +109,10 @@ export default {
           '--shadow-bento-active': '0 2px 10px -2px rgba(0, 0, 0, 0.1)',
         },
         '.dark': {
-          '--tw-gradient-from': theme('colors.mocha.900'),
-          '--tw-gradient-to': theme('colors.mocha.800'),
-          '--accent-gradient-from': theme('colors.mocha.600'),
-          '--accent-gradient-to': theme('colors.mocha.700'),
+          '--tw-gradient-from': theme('colors.mocha.900'),   // Fond gradient sombre (départ)
+          '--tw-gradient-to': theme('colors.mocha.800'),     // Fond gradient sombre (arrivée)
+          '--accent-gradient-from': theme('colors.mocha.600'), // Accent gradient sombre (départ)
+          '--accent-gradient-to': theme('colors.mocha.700'),   // Accent gradient sombre (arrivée)
         },
       })
     },

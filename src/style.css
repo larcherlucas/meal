@@ -54,19 +54,19 @@
 @layer components {
   /* Headings */
   .heading-1 {
-    @apply text-4xl md:text-5xl font-bold text-mocha-900 dark:text-mocha-50 leading-tight;
+    @apply text-4xl md:text-5xl font-bold text-mocha-700 dark:text-mocha-50 leading-tight;
   }
   
   .heading-2 {
-    @apply text-3xl md:text-4xl font-bold text-mocha-900 dark:text-mocha-50 leading-tight;
+    @apply text-3xl md:text-4xl font-bold text-mocha-700 dark:text-mocha-50 leading-tight;
   }
   
   .heading-3 {
-    @apply text-2xl md:text-3xl font-semibold text-mocha-800 dark:text-mocha-100 leading-snug;
+    @apply text-2xl md:text-3xl font-semibold text-mocha-700 dark:text-mocha-100 leading-snug;
   }
   
   .heading-4 {
-    @apply text-xl md:text-2xl font-semibold text-mocha-800 dark:text-mocha-100 leading-snug;
+    @apply text-xl md:text-2xl font-semibold text-mocha-700 dark:text-mocha-100 leading-snug;
   }
   
   /* Body text */
@@ -131,7 +131,7 @@
   .btn-primary {
     @apply btn-base
            bg-mocha-600 text-mocha-50 
-           hover:bg-mocha-700 active:bg-mocha-900
+           hover:bg-mocha-700 active:bg-mocha-800
            dark:bg-mocha-300 dark:hover:bg-mocha-400 
            dark:active:bg-mocha-500
            focus:ring-mocha-300;
@@ -181,7 +181,7 @@
   }
 
   .nav-link-active {
-    @apply bg-mocha-100 text-mocha-900
+    @apply bg-mocha-100 text-mocha-700
            dark:bg-mocha-800 dark:text-mocha-100;
   }
 
@@ -195,7 +195,7 @@
   .badge-premium {
     @apply badge
            bg-gradient-to-r from-mocha-300 to-mocha-400
-           text-mocha-900;
+           text-mocha-700;
   }
 
   .badge-new {

@@ -303,7 +303,7 @@ const openRecipeModal = (recipe: Recipe) => {
         <div class="p-4">
           <h3 class="text-lg font-semibold mb-2 line-clamp-2">{{ recipe.title }}</h3>
           
-          <div class="flex items-center text-sm text-mocha-600 space-x-4">
+          <div class="flex items-center text-sm font-semibold space-x-4" style="color: rgba(217, 121, 4, 1);">
             <span>{{ recipe.difficulty }}</span>
             <span>{{ recipe.totalTime }}</span>
             <span>{{ recipe.category }}</span>
@@ -322,7 +322,8 @@ const openRecipeModal = (recipe: Recipe) => {
     <!-- CTA Abonnement -->
     <div
       v-if="!authStore.hasActiveSubscription"
-      class="bento-card bg-gradient-to-r from-mocha-600 to-mocha-800 text-white text-center"
+      class="bento-card bg-gradient-to-r text-white text-center"
+      style="background-color: rgba(86, 122, 94, 1);"
     >
       <h2 class="text-2xl font-bold mb-4">Débloquez toutes les recettes !</h2>
       <p class="mb-6">Accédez à notre collection complète de recettes et au générateur de menus.</p>
@@ -333,5 +334,6 @@ const openRecipeModal = (recipe: Recipe) => {
         Voir les abonnements
       </router-link>
     </div>
+
   </div>
 </template>
