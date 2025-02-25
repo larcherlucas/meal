@@ -38,10 +38,10 @@ const handleSubscribe = async (planId: string) => {
 <template>
   <div class="max-w-7xl mx-auto px-4">
     <div class="text-center mb-12 animate-fade-in">
-      <h1 class="text-3xl font-bold text-mocha-800 mb-4">
+      <h1 class="text-3xl font-bold mb-4" style="color: rgba(89, 1, 1, 1);">
         Choisissez votre abonnement
       </h1>
-      <p class="text-mocha-600">
+      <p style="color: rgba(216, 121, 4, 1);">
         Accédez à toutes nos recettes et fonctionnalités premium
       </p>
     </div>
@@ -53,17 +53,17 @@ const handleSubscribe = async (planId: string) => {
         :popular="plan.id === 'yearly'"
         :animation="index === 0 ? 'slide' : index === 1 ? 'fade' : 'scale'"
       >
-        <div class="p-6">
-          <h3 class="text-xl font-bold text-mocha-800 mb-2">{{ plan.name }}</h3>
+        <div class="p-6" style="background-color: rgba(144, 165, 69, 0.1);">
+          <h3 class="text-xl font-bold mb-2" style="color: #590202;">{{ plan.name }}</h3>
           
           <div class="mb-6">
             <div class="flex items-baseline">
-              <span class="text-4xl font-bold text-mocha-800">
+              <span class="text-4xl font-bold" style="color: #D97904;">
                 {{ plan.price }}€
               </span>
-              <span class="text-mocha-600 ml-2">/mois</span>
+              <span class="ml-2" style="color: rgba(216, 121, 4, 1);">/mois</span>
             </div>
-            <p class="text-sm text-mocha-600 mt-1">
+            <p class="text-sm mt-1" style="color: #590202;">
               {{ plan.period === 'year' ? 'Facturation annuelle' : 
                  plan.period === 'month' ? 'Facturation mensuelle' : 
                  'Sans engagement' }}
@@ -77,6 +77,7 @@ const handleSubscribe = async (planId: string) => {
             :loading="isProcessing"
             full-width
             @click="handleSubscribe(plan.id)"
+            :style="plan.id === 'free' ? 'background-color: rgba(144, 165, 69, 1); color: white;' : 'background-color: rgba(242, 182, 4, 1); color: rgba(89, 1, 1, 1);'"
           >
             {{ plan.id === 'free' ? 'Commencer gratuitement' : 'Choisir ce plan' }}
           </MochaButton>
@@ -86,22 +87,22 @@ const handleSubscribe = async (planId: string) => {
 
     <div class="mt-16 grid md:grid-cols-2 gap-8">
       <BentoCard animation="fade">
-        <div class="p-6">
-          <h3 class="text-xl font-semibold text-mocha-800 mb-4">
+        <div class="p-6" style="background-color: rgba(144, 165, 69, 0.1);">
+          <h3 class="text-xl font-semibold mb-4" style="color: rgba(86, 122, 94, 1);">
             Paiement sécurisé
           </h3>
-          <p class="text-mocha-600">
+          <p style="color: rgb(96 74 56 / var(--tw-text-opacity, 1));">
             Vos paiements sont sécurisés et nous ne stockons jamais vos informations bancaires.
           </p>
         </div>
       </BentoCard>
 
       <BentoCard animation="fade">
-        <div class="p-6">
-          <h3 class="text-xl font-semibold text-mocha-800 mb-4">
+        <div class="p-6" style="background-color: rgba(144, 165, 69, 0.1);">
+          <h3 class="text-xl font-semibold mb-4" style="color: rgba(86, 122, 94, 1);">
             Satisfait ou remboursé
           </h3>
-          <p class="text-mocha-600">
+          <p style="color: rgb(96 74 56 / var(--tw-text-opacity, 1));">
             Essayez notre service pendant 30 jours. Si vous n'êtes pas satisfait, nous vous remboursons intégralement.
           </p>
         </div>

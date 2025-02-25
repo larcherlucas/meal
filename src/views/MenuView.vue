@@ -325,8 +325,11 @@ const openRecipeModal = (recipe: Recipe) => {
       class="bento-card bg-gradient-to-r text-white text-center"
       style="background-color: rgba(86, 122, 94, 1);"
     >
-      <h2 class="text-2xl font-bold mb-4">Débloquez toutes les recettes !</h2>
-      <p class="mb-6">Accédez à notre collection complète de recettes et au générateur de menus.</p>
+      <h2 class="text-2xl font-bold mb-4"
+      style="color: #fff;">Débloquez toutes les recettes !</h2>
+      <p class="mb-6"
+      style="color: #fff;"
+      >Accédez à notre collection complète de recettes et au générateur de menus.</p>
       <router-link
         to="/subscription"
         class="inline-block px-6 py-3 bg-white text-mocha-700 rounded-lg hover:bg-mocha-50 transition-colors"
