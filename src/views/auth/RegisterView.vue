@@ -1,104 +1,294 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useForm } from 'vee-validate'
-import * as yup from 'yup'
-import { Eye, EyeOff, Mail, Lock, User } from 'lucide-vue-next'
-import { useSignupStore } from '../../stores/signup'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useForm } from 'vee-validate';
+import * as yup from 'yup';
+import { Eye, EyeOff, Mail, Lock, User, CheckCircle, AlertCircle, PenTool } from 'lucide-vue-next';
+import { useSignupStore } from '@/stores/signup';
+import { useNotificationStore } from '@/stores/NotificationStore';
+import { useRouter } from 'vue-router';
+import { debounce } from 'lodash'; // Ajout d'un debounce pour les validations
 
-const router = useRouter()
-const signupStore = useSignupStore()
+const router = useRouter();
+const signupStore = useSignupStore();
+const notificationStore = useNotificationStore();
 
+// Configuration avancée du schéma de validation
 const schema = yup.object({
   username: yup.string()
     .required('Le nom d\'utilisateur est requis')
-    .min(3, '3 caractères minimum'),
+    .min(3, '3 caractères minimum')
+    .max(30, '30 caractères maximum')
+    .matches(/^[a-zA-Z0-9_\-]+$/, 'Lettres, chiffres, tirets ou underscores uniquement')
+    .test('is-unique', 'Ce nom d\'utilisateur est déjà utilisé', 
+      () => !signupStore.fieldErrors.username),
+  
   email: yup.string()
     .required('L\'email est requis')
     .email('Format d\'email invalide (exemple: nom@domaine.com)')
-})
+    .max(255, 'Email trop long (255 caractères maximum)')
+    .test('is-unique', 'Cet email est déjà utilisé', 
+      () => !signupStore.fieldErrors.email)
+});
 
-const { handleSubmit, errors, values, setFieldValue } = useForm({
+// Configuration du formulaire avec Vee-validate
+const { handleSubmit, errors, values, setFieldValue, setFieldError, resetForm } = useForm({
   validationSchema: schema,
   initialValues: {
     username: '',
     email: ''
   }
-})
+});
 
-const password = ref('')
-const confirmPassword = ref('')
-const passwordErrors = ref<string[]>([])
-const confirmPasswordErrors = ref<string[]>([])
-const submissionAttempted = ref(false)
+// État local pour le mot de passe avec validation avancée
+const password = ref('');
+const confirmPassword = ref('');
+const passwordErrors = ref<string[]>([]);
+const confirmPasswordErrors = ref<string[]>([]);
+const submissionAttempted = ref(false);
+const formTouched = ref(false);
+const userScrolled = ref(false);
 
+// Options d'affichage du mot de passe
+const showPassword = ref(false);
+const showConfirmPassword = ref(false);
+
+// Évaluation enrichie de la force du mot de passe
+const passwordStrength = computed(() => {
+  const pass = password.value;
+  if (!pass) return { value: 0, label: 'Non défini', class: 'bg-gray-200' };
+  
+  let score = 0;
+  let details = [];
+  
+  // Critères de base
+  if (pass.length >= 8) { 
+    score += 1;
+    details.push('longueur');
+  }
+  if (/[A-Z]/.test(pass)) {
+    score += 1;
+    details.push('majuscule');
+  }
+  if (/[0-9]/.test(pass)) {
+    score += 1;
+    details.push('chiffre');
+  }
+  if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass)) {
+    score += 1;
+    details.push('caractère spécial');
+  }
+  
+  // Bonus pour les mots de passe très longs
+  if (pass.length >= 12) {
+    score += 0.5;
+  }
+  
+  // Pénalité pour les séquences de caractères
+  if (/123|abc|qwerty|azerty|password|motdepasse/i.test(pass)) {
+    score -= 1;
+  }
+  
+  // Normalisez le score entre 0 et 100
+  const normalizedScore = Math.max(0, Math.min(100, score * 25));
+  
+  if (score <= 0) return { value: 0, label: 'Très faible', class: 'bg-gray-400' };
+  if (score <= 1) return { value: 25, label: 'Faible', class: 'bg-spice-red' };
+  if (score <= 2) return { value: 50, label: 'Moyen', class: 'bg-spice-yellow' };
+  if (score <= 3) return { value: 75, label: 'Bon', class: 'bg-spice-green/70' };
+  return { value: 100, label: 'Excellent', class: 'bg-spice-green' };
+});
+
+// Validation avancée du mot de passe avec suggestions
 const validatePassword = () => {
-  const pass = password.value
-  passwordErrors.value = []
+  const pass = password.value;
+  passwordErrors.value = [];
+  formTouched.value = true;
 
-  if (pass.length < 8) {
-    passwordErrors.value.push('8 caractères minimum')
+  if (!pass) {
+    passwordErrors.value.push('Le mot de passe est requis');
+    return;
   }
-  if (!/[A-Z]/.test(pass)) {
-    passwordErrors.value.push('Au moins une lettre majuscule')
+  
+  const checks = [
+    { condition: pass.length < 8, message: '8 caractères minimum' },
+    { condition: !/[A-Z]/.test(pass), message: 'Au moins une lettre majuscule' },
+    { condition: !/[0-9]/.test(pass), message: 'Au moins un chiffre' },
+    { condition: !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass), 
+      message: 'Au moins un caractère spécial (!@#$%^&*()_+-=[]{};\':"|,.<>/?)' }
+  ];
+  
+  checks.forEach(check => {
+    if (check.condition) {
+      passwordErrors.value.push(check.message);
+    }
+  });
+  
+  // Ajout de suggestions en cas de mot de passe faible
+  if (passwordErrors.value.length > 0 && pass.length > 0) {
+    const suggestion = `Conseil: un bon mot de passe pourrait combiner une phrase mémorable avec des chiffres et symboles.`;
+    console.info(suggestion);
   }
-  if (!/[0-9]/.test(pass)) {
-    passwordErrors.value.push('Au moins un chiffre')
-  }
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass)) {
-    passwordErrors.value.push('Au moins un caractère spécial (!@#$%^&*()_+-=[]{};\':"|,.<>/?)')
-  }
-}
+  
+  validateConfirmPassword();
+};
 
+// Validation de la confirmation avec meilleure UX
 const validateConfirmPassword = () => {
-  confirmPasswordErrors.value = []
-  if (confirmPassword.value !== password.value) {
-    confirmPasswordErrors.value.push('Les mots de passe ne correspondent pas')
+  confirmPasswordErrors.value = [];
+  
+  if (!confirmPassword.value && password.value) {
+    confirmPasswordErrors.value.push('La confirmation du mot de passe est requise');
+    return;
   }
-}
+  
+  if (confirmPassword.value && confirmPassword.value !== password.value) {
+    confirmPasswordErrors.value.push('Les mots de passe ne correspondent pas');
+  }
+};
 
-const showPassword = ref(false)
-const showConfirmPassword = ref(false)
-
+// Toggle l'affichage du mot de passe avec animation
 const togglePassword = (field: 'password' | 'confirm') => {
   if (field === 'password') {
-    showPassword.value = !showPassword.value
+    showPassword.value = !showPassword.value;
   } else {
-    showConfirmPassword.value = !showConfirmPassword.value
+    showConfirmPassword.value = !showConfirmPassword.value;
   }
-}
+};
 
-const onSubmit = handleSubmit(async (formValues) => {
-  submissionAttempted.value = true
-  validatePassword()
-  validateConfirmPassword()
+// Validation en temps réel de l'email avec debounce pour réduire les requêtes
+const validateEmail = debounce((email: string) => {
+  formTouched.value = true;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   
-  if (passwordErrors.value.length || confirmPasswordErrors.value.length) return
+  // Effacer les erreurs d'API sur changement
+  if (signupStore.fieldErrors.email) {
+    signupStore.fieldErrors.email = '';
+  }
+  
+  if (!email) {
+    setFieldError('email', 'L\'email est requis');
+    return;
+  }
+  
+  if (!emailRegex.test(email)) {
+    setFieldError('email', 'Format d\'email invalide (exemple: nom@domaine.com)');
+    return;
+  }
+  
+  // Effacer l'erreur si tout est valide
+  setFieldError('email', '');
+}, 300);
 
+// Validation en temps réel du nom d'utilisateur avec debounce
+const validateUsername = debounce((username: string) => {
+  formTouched.value = true;
+  // Effacer les erreurs d'API sur changement
+  if (signupStore.fieldErrors.username) {
+    signupStore.fieldErrors.username = '';
+  }
+  
+  const usernameRegex = /^[a-zA-Z0-9_\-]+$/;
+  
+  if (!username) {
+    setFieldError('username', 'Le nom d\'utilisateur est requis');
+    return;
+  }
+  
+  if (username.length < 3) {
+    setFieldError('username', '3 caractères minimum');
+    return;
+  }
+  
+  if (username.length > 30) {
+    setFieldError('username', '30 caractères maximum');
+    return;
+  }
+  
+  if (!usernameRegex.test(username)) {
+    setFieldError('username', 'Lettres, chiffres, tirets ou underscores uniquement');
+    return;
+  }
+  
+  // Effacer l'erreur si tout est valide
+  setFieldError('username', '');
+}, 300);
+
+// Vérification enrichie lors de la soumission
+const onSubmit = handleSubmit(async (formValues) => {
+  submissionAttempted.value = true;
+  validatePassword();
+  validateConfirmPassword();
+  
+  // Vérifier si des erreurs empêchent la soumission
+  if (passwordErrors.value.length || confirmPasswordErrors.value.length) {
+    notificationStore.error('Veuillez corriger les erreurs dans le formulaire', {
+      duration: 5000
+    });
+    
+    // Scroll automatique vers la première erreur si l'utilisateur n'a pas encore scrollé
+    if (!userScrolled.value) {
+      const firstErrorElement = document.querySelector('.text-spice-red');
+      if (firstErrorElement) {
+        firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+    return;
+  }
+
+  // Préparer les données complètes du formulaire
   const payload = {
     ...formValues,
     password: password.value
-  }
+  };
 
-  const success = await signupStore.initiateSignup(payload)
+  // Tenter l'inscription avec feedback
+  notificationStore.info('Création de votre compte en cours...', { 
+    duration: 3000,
+    id: 'signup-processing'
+  });
+  
+  const success = await signupStore.initiateSignup(payload);
+  
+  // Réinitialiser le formulaire en cas de succès
   if (success) {
-    router.push('/home')
+    resetForm();
+    password.value = '';
+    confirmPassword.value = '';
+    submissionAttempted.value = false;
+    formTouched.value = false;
+  } else {
+    // Scroll vers l'erreur globale
+    const errorElement = document.querySelector('.bg-red-50');
+    if (errorElement) {
+      errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   }
-})
+});
 
-// Validation en temps réel de l'email
-const validateEmail = (email: string) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!email) {
-    setFieldValue('email', '')
-    return 'L\'email est requis'
+// Observer les erreurs de l'API et les synchroniser avec vee-validate
+watch(() => signupStore.fieldErrors, (newErrors) => {
+  if (newErrors.email) {
+    setFieldError('email', newErrors.email);
   }
-  if (!emailRegex.test(email)) {
-    return 'Format d\'email invalide (exemple: nom@domaine.com)'
+  if (newErrors.username) {
+    setFieldError('username', newErrors.username);
   }
-  setFieldValue('email', email)
-  return ''
-}
+}, { deep: true });
+
+// Détecter le scroll utilisateur pour améliorer l'UX
+onMounted(() => {
+  window.addEventListener('scroll', () => {
+    userScrolled.value = true;
+  }, { once: true });
+});
+
+// Nettoyer le store lors du démontage du composant
+onBeforeUnmount(() => {
+  signupStore.resetState();
+  window.removeEventListener('scroll', () => {
+    userScrolled.value = true;
+  });
+});
 </script>
 
 <template>
@@ -118,52 +308,76 @@ const validateEmail = (email: string) => {
           </div>
 
           <!-- Form -->
-          <form @submit="onSubmit" class="space-y-6">
+          <form @submit="onSubmit" class="space-y-6" novalidate>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <!-- Username field -->
+              <!-- Username field with validation icon -->
               <div class="space-y-2">
                 <label class="block text-sm font-medium text-spice-700 dark:text-spice-200 flex items-center gap-2">
                   <User size="16" class="text-spice-500" />
                   Nom d'utilisateur
                 </label>
-                <input
-                  :value="values.username"
-                  @input="setFieldValue('username', $event.target.value)"
-                  type="text"
-                  class="input-spice"
-                  :class="{ 'border-spice-red': errors.username && submissionAttempted }"
-                  placeholder="Votre nom d'utilisateur"
-                />
-                <p v-if="errors.username && submissionAttempted" 
-                   class="text-spice-red text-sm mt-1">
+                <div class="relative">
+                  <input
+                    :value="values.username"
+                    @input="(e) => { 
+  const value = e.target.value;
+  setFieldValue('username', value); // Mettre à jour la valeur AVANT la validation
+  validateUsername(value);
+}"
+                    type="text"
+                    class="input-spice pl-3 pr-10"
+                    :class="{ 'border-spice-red': errors.username, 'border-spice-green': values.username && !errors.username }"
+                    placeholder="Votre nom d'utilisateur"
+                    autocomplete="username"
+                  />
+                  <!-- Validation icon -->
+                  <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                    <CheckCircle v-if="values.username && !errors.username" size="20" class="text-spice-green" />
+                    <AlertCircle v-if="errors.username" size="20" class="text-spice-red" />
+                  </div>
+                </div>
+                <p v-if="errors.username" 
+                   class="text-spice-red text-sm mt-1 flex items-center gap-1">
+                  <AlertCircle size="12" />
                   {{ errors.username }}
                 </p>
               </div>
 
-              <!-- Email field -->
+              <!-- Email field with validation icon -->
               <div class="space-y-2">
                 <label class="block text-sm font-medium text-spice-700 dark:text-spice-200 flex items-center gap-2">
                   <Mail size="16" class="text-spice-500" />
                   Email
                 </label>
-                <input
-                  :value="values.email"
-                  @input="(e) => { 
-                    const error = validateEmail(e.target.value);
-                    if (!error) setFieldValue('email', e.target.value);
-                  }"
-                  type="email"
-                  class="input-spice"
-                  :class="{ 'border-spice-red': errors.email }"
-                  placeholder="Votre email"
-                />
+                <div class="relative">
+                  <input
+                    :value="values.email"
+@input="(e) => { 
+  const value = e.target.value;
+  setFieldValue('email', value); // Mettre à jour la valeur AVANT la validation
+  validateEmail(value);
+}"
+
+                    type="email"
+                    class="input-spice pl-3 pr-10"
+                    :class="{ 'border-spice-red': errors.email, 'border-spice-green': values.email && !errors.email }"
+                    placeholder="Votre email"
+                    autocomplete="email"
+                  />
+                  <!-- Validation icon -->
+                  <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                    <CheckCircle v-if="values.email && !errors.email" size="20" class="text-spice-green" />
+                    <AlertCircle v-if="errors.email" size="20" class="text-spice-red" />
+                  </div>
+                </div>
                 <p v-if="errors.email" 
-                   class="text-spice-red text-sm mt-1">
+                   class="text-spice-red text-sm mt-1 flex items-center gap-1">
+                  <AlertCircle size="12" />
                   {{ errors.email }}
                 </p>
               </div>
 
-              <!-- Password field avec exigences visibles -->
+              <!-- Password field with strength indicator -->
               <div class="space-y-2">
                 <label class="block text-sm font-medium text-spice-700 dark:text-spice-200 flex items-center gap-2">
                   <Lock size="16" class="text-spice-500" />
@@ -173,10 +387,12 @@ const validateEmail = (email: string) => {
                   <input
                     v-model="password"
                     :type="showPassword ? 'text' : 'password'"
-                    class="input-spice pr-10"
-                    :class="{ 'border-spice-red': passwordErrors.length > 0 && submissionAttempted }"
+                    class="input-spice pl-3 pr-10"
+                    :class="{ 'border-spice-red': passwordErrors.length > 0 && submissionAttempted, 
+                              'border-spice-green': password && passwordErrors.length === 0 }"
                     placeholder="Votre mot de passe"
                     @input="validatePassword"
+                    autocomplete="new-password"
                   />
                   <button
                     type="button"
@@ -188,31 +404,58 @@ const validateEmail = (email: string) => {
                     <EyeOff v-else size="20" />
                   </button>
                 </div>
+                
+                <!-- Indicateur de force du mot de passe -->
+                <div v-if="password" class="mt-2">
+                  <div class="flex items-center gap-2">
+                    <div class="flex-grow h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        :class="passwordStrength.class" 
+                        :style="`width: ${passwordStrength.value}%`" 
+                        class="h-full transition-all duration-300"
+                      ></div>
+                    </div>
+                    <span class="text-xs text-spice-600">{{ passwordStrength.label }}</span>
+                  </div>
+                </div>
+                
                 <!-- Affichage des exigences du mot de passe -->
                 <div class="mt-2 space-y-1">
-                  <p class="text-caption" :class="{ 
+                  <p class="text-caption flex items-center gap-1" :class="{ 
                     'text-spice-green': password.length >= 8,
-                    'text-spice-red': password.length < 8 && submissionAttempted
+                    'text-spice-red': password.length < 8 && submissionAttempted,
+                    'text-spice-600': !(password.length >= 8 || (password.length < 8 && submissionAttempted))
                   }">
-                    ✓ 8 caractères minimum
+                    <CheckCircle v-if="password.length >= 8" size="12" />
+                    <AlertCircle v-if="password.length < 8 && submissionAttempted" size="12" />
+                    8 caractères minimum
                   </p>
-                  <p class="text-caption" :class="{ 
+                  <p class="text-caption flex items-center gap-1" :class="{ 
                     'text-spice-green': /[A-Z]/.test(password),
-                    'text-spice-red': !/[A-Z]/.test(password) && submissionAttempted
+                    'text-spice-red': !/[A-Z]/.test(password) && submissionAttempted,
+                    'text-spice-600': !(/[A-Z]/.test(password) || (!/[A-Z]/.test(password) && submissionAttempted))
                   }">
-                    ✓ Au moins une majuscule
+                    <CheckCircle v-if="/[A-Z]/.test(password)" size="12" />
+                    <AlertCircle v-if="!/[A-Z]/.test(password) && submissionAttempted" size="12" />
+                    Au moins une majuscule
                   </p>
-                  <p class="text-caption" :class="{ 
+                  <p class="text-caption flex items-center gap-1" :class="{ 
                     'text-spice-green': /[0-9]/.test(password),
-                    'text-spice-red': !/[0-9]/.test(password) && submissionAttempted
+                    'text-spice-red': !/[0-9]/.test(password) && submissionAttempted,
+                    'text-spice-600': !(/[0-9]/.test(password) || (!/[0-9]/.test(password) && submissionAttempted))
                   }">
-                    ✓ Au moins un chiffre
+                    <CheckCircle v-if="/[0-9]/.test(password)" size="12" />
+                    <AlertCircle v-if="!/[0-9]/.test(password) && submissionAttempted" size="12" />
+                    Au moins un chiffre
                   </p>
-                  <p class="text-caption" :class="{ 
+                  <p class="text-caption flex items-center gap-1" :class="{ 
                     'text-spice-green': /[!@#$%^&*()_+\-=\[\]{};':&quot;\\|,.<>\/?]/.test(password),
-                    'text-spice-red': !/[!@#$%^&*()_+\-=\[\]{};':&quot;\\|,.<>\/?]/.test(password) && submissionAttempted
+                    'text-spice-red': !/[!@#$%^&*()_+\-=\[\]{};':&quot;\\|,.<>\/?]/.test(password) && submissionAttempted,
+                    'text-spice-600': !(/[!@#$%^&*()_+\-=\[\]{};':&quot;\\|,.<>\/?]/.test(password) || (!/[!@#$%^&*()_+\-=\[\]{};':&quot;\\|,.<>\/?]/.test(password) && submissionAttempted))
                   }">
-                    ✓ Au moins un caractère spécial
+                    <CheckCircle v-if="/[!@#$%^&*()_+\-=\[\]{};':&quot;\\|,.<>\/?]/.test(password)" size="12" />
+                    <AlertCircle v-if="!/[!@#$%^&*()_+\-=\[\]{};':&quot;\\|,.<>\/?]/.test(password) && submissionAttempted" size="12" />
+                    Au moins un caractère spécial
                   </p>
                 </div>
               </div>
@@ -227,10 +470,14 @@ const validateEmail = (email: string) => {
                   <input
                     v-model="confirmPassword"
                     :type="showConfirmPassword ? 'text' : 'password'"
-                    class="input-spice pr-10"
-                    :class="{ 'border-spice-red': confirmPasswordErrors.length > 0 && submissionAttempted }"
+                    class="input-spice pl-3 pr-10"
+                    :class="{ 
+                      'border-spice-red': confirmPasswordErrors.length > 0 && submissionAttempted,
+                      'border-spice-green': confirmPassword && confirmPassword === password && password
+                    }"
                     placeholder="Confirmez votre mot de passe"
                     @input="validateConfirmPassword"
+                    autocomplete="new-password"
                   />
                   <button
                     type="button"
@@ -241,26 +488,42 @@ const validateEmail = (email: string) => {
                     <Eye v-if="!showConfirmPassword" size="20" />
                     <EyeOff v-else size="20" />
                   </button>
+                  
+                  <!-- Icon de validation pour la confirmation -->
+                  <div v-if="confirmPassword" class="absolute right-10 top-1/2 -translate-y-1/2">
+                    <CheckCircle v-if="confirmPassword === password && password" size="20" class="text-spice-green" />
+                    <AlertCircle v-else size="20" class="text-spice-red" />
+                  </div>
                 </div>
                 <p v-if="confirmPasswordErrors.length && submissionAttempted" 
-                   class="text-spice-red text-sm mt-1">
+                   class="text-spice-red text-sm mt-1 flex items-center gap-1">
+                  <AlertCircle size="12" />
                   {{ confirmPasswordErrors[0] }}
                 </p>
               </div>
             </div>
 
             <!-- Error message from store -->
-            <div v-if="signupStore.error" class="mt-4">
-              <p class="text-spice-red text-sm text-center">{{ signupStore.error }}</p>
+            <div v-if="signupStore.error" class="p-4 bg-red-50 border border-red-200 rounded-lg mt-4">
+              <p class="text-spice-red text-sm text-center flex items-center justify-center gap-2">
+                <AlertCircle size="16" />
+                {{ signupStore.error }}
+              </p>
             </div>
 
-            <!-- Submit Button -->
+            <!-- Submit Button with loading state -->
             <button
               type="submit"
               class="btn-spice w-full mt-8 py-4 text-lg font-medium transform hover:-translate-y-1 hover:shadow-bento-hover active:translate-y-0 transition-all duration-400 ease-bounce-soft"
               :disabled="signupStore.isLoading"
             >
-              <span v-if="signupStore.isLoading">Création en cours...</span>
+              <span v-if="signupStore.isLoading" class="flex items-center justify-center gap-2">
+                <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Création en cours...
+              </span>
               <span v-else>Créer mon compte</span>
             </button>
 
@@ -317,171 +580,30 @@ const validateEmail = (email: string) => {
                         hover:bg-white/20 transition-all duration-500
                         transform hover:-translate-y-1">
               <h3 class="text-lg font-medium text-white mb-2">
-                Liste de courses intelligente
+                Liste de courses automatique
               </h3>
               <p class="text-spice-200">
-                Générez automatiquement votre liste de courses hebdomadaire
+                Générez votre liste de courses en fonction de vos menus
               </p>
             </div>
+          </div>
+        </div>
+
+        <!-- App Store badges (optional) -->
+        <div class="mt-auto pt-8">
+          <p class="text-white text-center lg:text-left mb-4">
+            Disponible sur tous vos appareils
+          </p>
+          <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+            <button class="btn-ghost-white">
+              <span>Web App</span>
+            </button>
+            <button class="btn-ghost-white">
+              <span>Mobile App</span>
+            </button>
           </div>
         </div>
       </div>
     </div>
   </div>
 </template>
-
-<style>
-:root {
-  /* Palette de couleurs optimisée basée sur les épices */
-  --spice-green: rgb(96, 140, 2);        /* Vert d'herbes aromatiques */
-  --spice-yellow: rgb(242, 182, 4);      /* Jaune de curcuma */
-  --spice-orange: rgb(216, 121, 4);      /* Orange de paprika */
-  --spice-red: rgb(216, 43, 4);          /* Rouge de piment */
-  --spice-dark-red: rgb(140, 14, 2);     /* Rouge foncé de piment séché */
-  
-  /* Nuances complémentaires pour l'interface */
-  --spice-100: rgb(252, 247, 230);       /* Fond très clair */
-  --spice-200: rgb(245, 230, 190);       /* Texte sur fond foncé */
-  --spice-300: rgb(240, 210, 150);       /* Accents clairs */
-  --spice-400: rgb(230, 190, 110);       /* Icônes et détails secondaires */
-  --spice-500: rgb(216, 121, 4);         /* Éléments interactifs principaux */
-  --spice-600: rgb(180, 90, 4);          /* Éléments au survol */
-  --spice-700: rgb(150, 60, 4);          /* Texte principal */
-  --spice-800: rgb(120, 40, 4);          /* Titres et texte important */
-  --spice-900: rgb(90, 20, 4);           /* Texte très foncé et accents */
-}
-
-/* Styles généraux */
-.bg-gradient-spice {
-  background: linear-gradient(135deg, var(--spice-100) 0%, var(--spice-200) 100%);
-}
-
-/* Composant Bento Card */
-.bento-card {
-  background-color: white;
-  border-radius: 1.5rem;
-  padding: 2rem;
-  box-shadow: 0 10px 25px rgba(216, 121, 4, 0.1);
-  transition: all 0.4s ease;
-}
-
-/* Boutons */
-.btn-spice {
-  background: linear-gradient(135deg, var(--spice-orange) 0%, var(--spice-red) 100%);
-  color: white;
-  border-radius: 0.75rem;
-  padding: 0.75rem 1.5rem;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  border: none;
-  box-shadow: 0 4px 12px rgba(216, 121, 4, 0.2);
-}
-
-.btn-spice:hover {
-  background: linear-gradient(135deg, var(--spice-red) 0%, var(--spice-dark-red) 100%);
-  box-shadow: 0 6px 16px rgba(216, 43, 4, 0.3);
-}
-
-.btn-spice:disabled {
-  background: linear-gradient(135deg, var(--spice-400) 0%, var(--spice-500) 100%);
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-/* Input fields */
-.input-spice {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 2px solid var(--spice-300);
-  border-radius: 0.75rem;
-  background-color: white;
-  transition: all 0.3s ease;
-  color: var(--spice-800);
-}
-
-.input-spice:focus {
-  border-color: var(--spice-orange);
-  box-shadow: 0 0 0 3px rgba(216, 121, 4, 0.2);
-  outline: none;
-}
-
-.input-spice::placeholder {
-  color: var(--spice-400);
-}
-
-/* Typographie */
-.heading-1 {
-  font-size: 2.5rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--spice-800);
-}
-
-.heading-2 {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.text-body-lg {
-  font-size: 1.125rem;
-  line-height: 1.5;
-}
-
-.text-body-sm {
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.text-caption {
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: var(--spice-600);
-}
-
-/* Classes utilitaires pour les arrondis */
-.rounded-bento {
-  border-radius: 1.25rem;
-}
-
-/* Effets d'animation */
-.animate-scale-up {
-  animation: scaleUp 0.5s ease forwards;
-}
-
-@keyframes scaleUp {
-  0% { transform: scale(0.95); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-/* Styles pour le backdrop blur */
-.backdrop-blur-glass {
-  backdrop-filter: blur(8px);
-}
-
-/* Transition pour les effets de survol */
-.transition-all {
-  transition-property: all;
-}
-
-.duration-300 {
-  transition-duration: 300ms;
-}
-
-.duration-400 {
-  transition-duration: 400ms;
-}
-
-.duration-500 {
-  transition-duration: 500ms;
-}
-
-.ease-bounce-soft {
-  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* Shadow effects */
-.shadow-bento-hover {
-  box-shadow: 0 15px 30px rgba(216, 121, 4, 0.15);
-}
-</style>

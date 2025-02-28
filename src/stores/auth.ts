@@ -1,3 +1,4 @@
+// auth.ts (Store optimisé)
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import router from '@/router'
@@ -11,7 +12,6 @@ interface User {
   subscription?: {
     isActive: boolean;
   };
-  // autres propriétés utilisateur
 }
 
 interface LoginCredentials {
@@ -19,82 +19,86 @@ interface LoginCredentials {
   password: string;
 }
 
-// Variable pour suivre si une initialisation est en cours
+// Clé pour localStorage
+const TOKEN_KEY = 'auth_token'
 let isInitializing = false;
+let isLoggingOut = false;
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
-  const token = ref<string | null>(localStorage.getItem('token'))
+  const token = ref<string | null>(localStorage.getItem(TOKEN_KEY))
   const loading = ref(false)
   const error = ref<string | null>(null)
   const isInitialized = ref(false)
   const isVerified = ref(false)
   
   const hasActiveSubscription = computed(() => user.value?.subscription?.isActive || false)
-  const isAuthenticated = computed(() => {
-    const hasToken = !!token.value
-    const hasVerification = isVerified.value
-    
-    console.log("État d'authentification:", { hasToken, hasUser: !!user.value, hasVerification })
-    
-    return hasToken && hasVerification
-  })
   
+  // Simplifié et plus logique
+  const isAuthenticated = computed(() => !!token.value && isVerified.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
 
-  // Nouvelle fonction qui combine initializeAuth, verifyToken et fetchUser
+  // Fonction unique d'initialisation
   const initialize = async () => {
     if (isInitializing) return;
     isInitializing = true;
     
     try {
-      const savedToken = localStorage.getItem('token')
-      if (savedToken) {
-        token.value = savedToken
-        const isValid = await verifyToken()
-        if (isValid) {
-          await fetchUser()
-        }
+      const savedToken = localStorage.getItem(TOKEN_KEY)
+      
+      if (!savedToken) {
+        isInitialized.value = true
+        isInitializing = false
+        return
       }
-    } catch (err) {
-      console.error('Erreur d\'initialisation:', err)
+      
+      token.value = savedToken
+      
+      try {
+        // Vérifier la validité du token
+        await apiService.account.verifyToken()
+        isVerified.value = true
+        
+        // Récupérer les données utilisateur
+        await fetchUser()
+      } catch (err) {
+        console.error('Token invalide ou erreur lors de la vérification:', err)
+        await clearAuthData()
+      }
     } finally {
       isInitialized.value = true
       isInitializing = false
     }
   }
 
-  const initializeAuth = async () => {
-    return initialize()
-  }
-
-  const verifyToken = async () => {
-    if (!token.value) return false
-    try {
-      await apiService.account.verifyToken()
-      isVerified.value = true
-      return true
-    } catch (err) {
-      console.error('Erreur de vérification du token:', err)
-      isVerified.value = false
-      token.value = null
-      localStorage.removeItem('token')
-      return false
-    }
+  const clearAuthData = async () => {
+    user.value = null
+    token.value = null
+    isVerified.value = false
+    localStorage.removeItem(TOKEN_KEY)
   }
 
   const fetchUser = async () => {
-    if (!token.value) return
-
+    if (!token.value || !isVerified.value) return
+    
     try {
-      const response = await apiService.account.getOne('me')
+      // Utiliser l'endpoint du profil utilisateur au lieu de getAll
+      const response = await apiService.account.getOne  // Endpoint /account/me
+      // OU si apiService n'a pas cette méthode:
+      // const response = await api.get('/account/me')
       user.value = response.data
     } catch (err) {
       console.error('Erreur lors de la récupération du profil:', err)
       error.value = 'Erreur lors de la récupération du profil'
     }
   }
-
+  const setSession = (authToken: string, userData: User) => {
+    token.value = authToken;
+    user.value = userData;
+    localStorage.setItem(TOKEN_KEY, authToken);
+    isVerified.value = true;
+    return true;
+  };
   const signup = async (userData: any) => {
     loading.value = true
     error.value = null
@@ -102,25 +106,26 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await apiService.auth.signup(userData)
       
-      // S'assurer que le token est dans la bonne structure
-      const responseToken = response.data.token || response.data.data?.token
+      // Extraction sécurisée du token
+      const responseData = response.data
+      const responseToken = responseData.token || (responseData.data && responseData.data.token)
       
       if (!responseToken) {
         throw new Error('Token non trouvé dans la réponse')
       }
       
+      // Enregistrement du token
       token.value = responseToken
-      localStorage.setItem('token', responseToken)
-      
-      // Vérifiez immédiatement que le token a bien été stocké
-      const storedToken = localStorage.getItem('token')
-      console.log("Token stocké dans localStorage:", storedToken ? "Oui" : "Non", storedToken?.substr(0, 10) + "...")
-      
+      localStorage.setItem(TOKEN_KEY, responseToken)
       isVerified.value = true
+      
+      // Vérification du stockage et récupération du profil
       await fetchUser()
       return true
     } catch (err: any) {
-      error.value = err.response?.data?.message || 'Erreur lors de l\'inscription'
+      const errorMessage = err.response?.data?.message || 'Erreur lors de l\'inscription'
+      error.value = errorMessage
+      console.error('Erreur d\'inscription:', err, errorMessage)
       return false
     } finally {
       loading.value = false
@@ -134,58 +139,83 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await apiService.auth.login(credentials)
       
-      // Vérifier la structure de la réponse et récupérer le token
-      const responseToken = response.data.token || response.data.data?.token
+      // Extraction sécurisée du token avec structure plus robuste
+      const responseData = response.data
+      const responseToken = responseData.token || (responseData.data && responseData.data.token)
       
       if (!responseToken) {
-        console.error("Structure de réponse inattendue:", response.data)
+        console.error("Structure de réponse inattendue:", responseData)
         throw new Error('Token non trouvé dans la réponse')
       }
       
-      // Ces lignes sont critiques - assurez-vous qu'elles s'exécutent correctement
+      // Stockage du token
       token.value = responseToken
-      localStorage.setItem('token', responseToken)
+      localStorage.setItem(TOKEN_KEY, responseToken)
       isVerified.value = true
       
-      // Vérifiez immédiatement que le token est bien défini
-      console.log("Token après login:", token.value ? "Défini" : "Non défini", token.value?.substr(0, 10) + "...")
-      
+      // Récupération du profil utilisateur
       await fetchUser()
       return true
     } catch (err: any) {
-      console.error('Erreur complète de connexion:', err)
-      error.value = err.response?.data?.message || 'Erreur de connexion'
+      // Gestion des erreurs améliorée
+      let errorMessage = 'Erreur de connexion'
+      
+      if (err.response) {
+        if (err.response.status === 401) {
+          errorMessage = 'Email ou mot de passe incorrect'
+        } else if (err.response.status === 403) {
+          errorMessage = 'Compte désactivé ou non vérifié'
+        } else if (err.response.data?.message) {
+          errorMessage = err.response.data.message
+        }
+      }
+      
+      error.value = errorMessage
+      console.error('Erreur de connexion:', err, errorMessage)
       return false
     } finally {
       loading.value = false
     }
   }
 
-  // Variable pour suivre si une déconnexion est en cours
-  let isLoggingOut = false;
-
   const logout = async () => {
     if (isLoggingOut) return;
     isLoggingOut = true;
     
     try {
-      // Seulement appeler l'API de déconnexion si on a un token valide
+      // Appel API de déconnexion seulement si on a un token valide
       if (token.value && isVerified.value) {
-        await apiService.auth.logout()
+        try {
+          await apiService.auth.logout()
+        } catch (err) {
+          console.warn('Erreur lors de la déconnexion API:', err)
+          // On continue la déconnexion côté client même si l'API échoue
+        }
       }
-    } catch (err) {
-      console.error('Erreur lors de la déconnexion:', err)
     } finally {
-      // Toujours nettoyer les données locales
-      user.value = null
-      token.value = null
-      isVerified.value = false
-      localStorage.removeItem('token')
+      // Nettoyage local toujours exécuté
+      await clearAuthData()
       isLoggingOut = false
     }
     
-    // Effectuer la redirection après le nettoyage et en dehors du bloc finally
+    // Redirection après le nettoyage
     await navigateTo('/login')
+  }
+
+  // Alias pour rétrocompatibilité
+  const initializeAuth = initialize
+  const verifyToken = async () => {
+    if (!token.value) return false
+    try {
+      await apiService.account.verifyToken()
+      isVerified.value = true
+      return true
+    } catch (err) {
+      console.error('Erreur de vérification du token:', err)
+      isVerified.value = false
+      await clearAuthData()
+      return false
+    }
   }
 
   return {
@@ -204,6 +234,7 @@ export const useAuthStore = defineStore('auth', () => {
     fetchUser,
     signup,
     login,
+    setSession,
     logout
   }
 })

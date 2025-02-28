@@ -2,75 +2,93 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { useAuthStore } from './auth';
 import { useUserPreferencesStore } from './userPreferences';
+import { useNotificationStore } from './NotificationStore';
 import { apiService } from '../api/config';
-import router from '@/router';
 import { navigateTo } from '@/utils/router-helpers';
-import type { SignupForm } from '../types';
+import type { SignupForm, ApiErrorResponse } from '../types';
 
 export const useSignupStore = defineStore('signup', () => {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
+  const fieldErrors = ref<Record<string, string>>({});
   const signupSuccess = ref(false);
+  const attemptCount = ref(0); // Nouveau: compter les tentatives d'inscription
 
   const resetState = () => {
     isLoading.value = false;
     error.value = null;
+    fieldErrors.value = {};
     signupSuccess.value = false;
+    // Ne pas réinitialiser attemptCount pour suivre les tentatives multiples
   };
 
+  /**
+   * Tente l'inscription d'un nouvel utilisateur
+   * @param formData Données du formulaire d'inscription validées par Vee-validate
+   * @returns Booléen indiquant si l'inscription a réussi
+   */
   const initiateSignup = async (formData: SignupForm): Promise<boolean> => {
     resetState();
     isLoading.value = true;
+    attemptCount.value++; // Incrémente le compteur de tentatives
+    
+    const notificationStore = useNotificationStore();
 
     try {
       const payload = {
         username: formData.username,
-        email: formData.email,
+        email: formData.email.trim().toLowerCase(), // Normalisation de l'email
         password: formData.password,
         confirmPassword: formData.password,
         preferences: {
           language: 'fr',
-          theme: 'dark'
+          theme: 'light',
+          // Ajouter plus de préférences utilisateur si nécessaire
         }
       };
-
-      console.log('Payload avant envoi:', payload);
+      
+      // Journalisation en développement uniquement
+      if (import.meta.env.DEV) {
+        console.log('Envoi de la requête d\'inscription:', { ...payload, password: '[MASQUÉ]' });
+      }
       
       const response = await apiService.auth.signup(payload);
-      console.log('Réponse de l\'API:', response.data);
       
-      // Format de réponse attendu
-      if (response.data?.token) {
+      // Gestion de la réponse réussie avec une meilleure détection du format de réponse
+      if (response?.data) {
+        const responseData = response.data?.data || response.data;
+        const token = responseData.token;
+        const user = responseData.user;
+        
+        if (!token || !user) {
+          throw new Error('Format de réponse incomplet: token ou user manquant');
+        }
+        
+        // Mise à jour des stores
         const authStore = useAuthStore();
+        authStore.setSession(token, user);
         const preferencesStore = useUserPreferencesStore();
         
-        authStore.token = response.data.token;
-        authStore.user = response.data.user;
-        authStore.isVerified = true;
-        localStorage.setItem('token', response.data.token);
         preferencesStore.initFromAuthStore();
         
         signupSuccess.value = true;
         
-        // Redirection immédiate après inscription réussie (sans setTimeout)
-        await navigateTo('/profile');
+        // Notification de succès améliorée
+        notificationStore.success(
+          'Votre compte a été créé avec succès! Bienvenue dans Menu Planner.',
+          { duration: 7000 }
+        );
         
-        return true;
-      } else if (response.data?.data?.token) {
-        // Format alternatif possible
-        const authStore = useAuthStore();
-        const preferencesStore = useUserPreferencesStore();
+        // Analyser si l'utilisateur a fait plusieurs tentatives avant de réussir
+        if (attemptCount.value > 1) {
+          // Enregistrement anonyme pour amélioration UX si plusieurs tentatives
+          console.info(`Inscription réussie après ${attemptCount.value} tentatives`);
+        }
         
-        authStore.token = response.data.data.token;
-        authStore.user = response.data.data.user;
-        authStore.isVerified = true;
-        localStorage.setItem('token', response.data.data.token);
-        preferencesStore.initFromAuthStore();
-        
-        signupSuccess.value = true;
-        
-        // Redirection immédiate après inscription réussie (sans setTimeout)
-        await navigateTo('/profile');
+        // Redirection vers le profil avec délai pour permettre à l'utilisateur de voir la notification
+        setTimeout(async () => {
+          await navigateTo('/profile');
+        }, 1000);
         
         return true;
       }
@@ -79,29 +97,94 @@ export const useSignupStore = defineStore('signup', () => {
     } catch (err: any) {
       console.error('Erreur lors de l\'inscription:', err);
       
-      // Détection améliorée des messages d'erreur
-      const errorResponse = err.response?.data;
-      const errorMessage = errorResponse?.message || errorResponse?.error || err.message;
-      
-      if (errorMessage.includes('déjà utilisé') || 
-          err.response?.status === 409) {
-        error.value = 'Cet email est déjà utilisé. Veuillez utiliser un autre email ou vous connecter.';
-      } else if (errorResponse?.message) {
-        error.value = errorResponse.message;
-      } else {
-        error.value = 'Une erreur est survenue lors de l\'inscription. Veuillez réessayer.';
-      }
+      // Gestion avancée des erreurs d'API
+      handleSignupError(err);
       
       return false;
     } finally {
       isLoading.value = false;
     }
   };
+  
+  /**
+   * Traite les différents types d'erreurs provenant de l'API
+   */
+  const handleSignupError = (err: any) => {
+    const notificationStore = useNotificationStore();
+    
+    // Extraction des données d'erreur
+    const errorResponse = err.response?.data as ApiErrorResponse | undefined;
+    const status = err.response?.status;
+    
+    // Traitement des erreurs spécifiques aux champs
+    if (errorResponse?.errors && typeof errorResponse.errors === 'object') {
+      fieldErrors.value = errorResponse.errors;
+      
+      // Message global si erreurs multiples
+      if (Object.keys(errorResponse.errors).length > 0) {
+        error.value = 'Veuillez corriger les erreurs dans le formulaire';
+        
+        // Notification pour meilleure visibilité
+        notificationStore.error('Des erreurs ont été détectées dans le formulaire', {
+          duration: 7000
+        });
+      }
+    } 
+    // Traitement des erreurs par status code avec messages plus spécifiques
+    else if (status) {
+      switch (status) {
+        case 409: // Conflit (email déjà utilisé)
+          error.value = 'Cet email est déjà utilisé. Veuillez utiliser un autre email ou vous connecter.';
+          fieldErrors.value.email = 'Email déjà utilisé';
+          break;
+          
+        case 400: // Mauvaise requête
+          error.value = errorResponse?.message || 'Données d\'inscription invalides';
+          break;
+          
+        case 422: // Validation échouée
+          error.value = errorResponse?.message || 'Veuillez vérifier les informations saisies';
+          break;
+          
+        case 500: // Erreur serveur
+          error.value = 'Une erreur serveur est survenue. Veuillez réessayer ultérieurement.';
+          notificationStore.error('Erreur serveur lors de l\'inscription. Notre équipe a été notifiée.', {
+            duration: 10000
+          });
+          
+          // Log détaillé pour debugging
+          console.error('Erreur serveur 500 lors de l\'inscription:', err);
+          break;
+          
+        case 429: // Trop de requêtes
+          const retryAfter = err.response?.headers?.['retry-after'] || '60';
+          error.value = `Trop de tentatives. Veuillez réessayer après ${retryAfter} secondes.`;
+          notificationStore.warning(`Limite de tentatives atteinte. Veuillez patienter ${retryAfter} secondes.`, {
+            duration: parseInt(retryAfter) * 1000
+          });
+          break;
+          
+        default:
+          error.value = errorResponse?.message || `Une erreur est survenue lors de l'inscription (${status})`;
+      }
+    } 
+    // Erreur réseau ou autre
+    else {
+      error.value = err.message || 'Impossible de contacter le serveur. Vérifiez votre connexion internet.';
+      
+      notificationStore.error('Problème de connexion au serveur. Veuillez vérifier votre connexion internet.', {
+        duration: 7000,
+        closable: true
+      });
+    }
+  };
 
   return {
     isLoading,
     error,
+    fieldErrors,
     signupSuccess,
+    attemptCount,
     initiateSignup,
     resetState
   };

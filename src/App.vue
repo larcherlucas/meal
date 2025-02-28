@@ -5,6 +5,7 @@ import { useThemeStore } from './stores/theme'
 import Navigation from './components/Navigation.vue'
 import AuthNotification from './components/auth/AuthNotification.vue'
 
+
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
 

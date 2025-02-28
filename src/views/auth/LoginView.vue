@@ -18,7 +18,7 @@
       <!-- Formulaire -->
       <div class="bento-card">
         <form @submit.prevent="handleSubmit" class="space-y-6">
-          <!-- Email -->
+          <!-- Email avec icône de statut améliorée -->
           <div>
             <label for="email" class="block text-body-sm font-medium text-mocha-700 dark:text-mocha-200">
               Email
@@ -30,26 +30,42 @@
                 type="email"
                 autocomplete="email"
                 required
-                class="input-mocha w-full pr-10"
-                :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500': v$.email.$error || emailError }"
+                class="input-mocha w-full pl-10 pr-10 transition-all duration-200"
+                :class="{ 
+                  'border-red-500 focus:border-red-500 focus:ring-red-500': v$.email.$error || emailError,
+                  'border-green-500 focus:border-green-500 focus:ring-green-500': formData.email && !v$.email.$error && !emailError
+                }"
+                @input="clearEmailError"
               />
+              <!-- Icône à gauche (type d'entrée) -->
+              <div class="absolute inset-y-0 left-0 flex items-center pl-3 text-mocha-400">
+                <EnvelopeIcon class="h-5 w-5" aria-hidden="true" />
+              </div>
+              <!-- Icône à droite (validation) -->
               <div class="absolute inset-y-0 right-0 flex items-center pr-3">
                 <ExclamationCircleIcon
                   v-if="v$.email.$error || emailError"
                   class="h-5 w-5 text-red-500"
                   aria-hidden="true"
                 />
+                <CheckCircleIcon
+                  v-else-if="formData.email && isValidEmail(formData.email)"
+                  class="h-5 w-5 text-green-500"
+                  aria-hidden="true"
+                />
               </div>
             </div>
-            <p v-if="emailError" class="mt-2 text-caption text-red-600">
+            <p v-if="emailError" class="mt-2 text-caption text-red-600 flex items-center">
+              <ExclamationTriangleIcon class="h-4 w-4 mr-1" />
               {{ emailError }}
             </p>
-            <p v-else-if="v$.email.$error" class="mt-2 text-caption text-red-600">
+            <p v-else-if="v$.email.$error" class="mt-2 text-caption text-red-600 flex items-center">
+              <ExclamationTriangleIcon class="h-4 w-4 mr-1" />
               {{ v$.email.email.$message || 'Email invalide' }}
             </p>
           </div>
 
-          <!-- Mot de passe -->
+          <!-- Mot de passe avec icônes améliorées -->
           <div>
             <label for="password" class="block text-body-sm font-medium text-mocha-700 dark:text-mocha-200">
               Mot de passe
@@ -61,25 +77,40 @@
                 :type="showPassword ? 'text' : 'password'"
                 autocomplete="current-password"
                 required
-                class="input-mocha w-full pr-10"
-                :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500': v$.password.$error || passwordError }"
+                class="input-mocha w-full pl-10 pr-10 transition-all duration-200"
+                :class="{ 
+                  'border-red-500 focus:border-red-500 focus:ring-red-500': v$.password.$error || passwordError,
+                  'border-green-500 focus:border-green-500 focus:ring-green-500': formData.password && !v$.password.$error && !passwordError
+                }"
+                @input="clearPasswordError"
               />
-              <button
-                type="button"
-                class="absolute inset-y-0 right-0 flex items-center pr-3 text-mocha-400 hover:text-mocha-500 transition-all duration-200"
-                @click="showPassword = !showPassword"
-              >
-                <EyeIcon v-if="showPassword" class="h-5 w-5" aria-hidden="true" />
-                <EyeSlashIcon v-else class="h-5 w-5" aria-hidden="true" />
-              </button>
+              <!-- Icône à gauche (type d'entrée) -->
+              <div class="absolute inset-y-0 left-0 flex items-center pl-3 text-mocha-400">
+                <LockClosedIcon class="h-5 w-5" aria-hidden="true" />
+              </div>
+              <!-- Icône à droite (afficher/masquer + validation) -->
+              <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                <button
+                  type="button"
+                  class="text-mocha-400 hover:text-mocha-500 focus:outline-none transition-all duration-200"
+                  @click="showPassword = !showPassword"
+                >
+                  <EyeIcon v-if="showPassword" class="h-5 w-5" aria-hidden="true" />
+                  <EyeSlashIcon v-else class="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
             <div class="flex items-center justify-between mt-2">
-              <p v-if="passwordError" class="text-caption text-red-600">
-                {{ passwordError }}
-              </p>
-              <p v-else-if="v$.password.$error" class="text-caption text-red-600">
-                {{ v$.password.required.$message || 'Mot de passe requis' }}
-              </p>
+              <div>
+                <p v-if="passwordError" class="text-caption text-red-600 flex items-center">
+                  <ExclamationTriangleIcon class="h-4 w-4 mr-1" />
+                  {{ passwordError }}
+                </p>
+                <p v-else-if="v$.password.$error" class="text-caption text-red-600 flex items-center">
+                  <ExclamationTriangleIcon class="h-4 w-4 mr-1" />
+                  {{ v$.password.required.$message || 'Mot de passe requis' }}
+                </p>
+              </div>
               <button
                 type="button"
                 class="text-caption font-medium text-mocha-600 hover:text-mocha-500 dark:text-mocha-300 dark:hover:text-mocha-200 transition-all duration-200"
@@ -105,10 +136,12 @@
             </div>
           </div>
 
+          <!-- Bouton de connexion avec états améliorés -->
           <button
             type="submit"
-            :disabled="isLoading"
-            class="btn-primary w-full relative"
+            :disabled="isLoading || isSubmitDisabled"
+            class="btn-primary w-full relative transition-all duration-200"
+            :class="{ 'opacity-75 cursor-not-allowed': isSubmitDisabled && !isLoading }"
           >
             <span :class="{ 'opacity-0': isLoading }">
               Se connecter
@@ -137,56 +170,110 @@
       </div>
     </div>
 
-    <!-- Notifications -->
-    <AuthNotification
-      :show="!!notification"
-      :type="notification?.type || 'error'"
-      :title="notification?.title || ''"
-      :message="notification?.message || ''"
-      @close="notification = null"
-    />
-
-    <!-- Pop-up de vérification du compte -->
-    <div v-if="showAccountVerification" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center backdrop-blur-glass animate-fade-in">
-      <div class="bento-card p-6 max-w-md w-full animate-scale-up">
-        <h3 class="heading-3 mb-4">
-          Est-ce vraiment votre compte ?
-        </h3>
-        <p class="text-body mb-6">
-          Nous avons détecté plusieurs tentatives de connexion échouées. Si vous avez oublié vos identifiants, vous pouvez utiliser la fonction "Mot de passe oublié".
-        </p>
-        <div class="flex justify-end space-x-4">
-          <button
-            @click="showAccountVerification = false"
-            class="btn-secondary"
-          >
-            Fermer
-          </button>
-          <button
-            @click="handleForgotPassword"
-            class="btn-primary"
-          >
-            Réinitialiser le mot de passe
-          </button>
+    <!-- Notifications avec icônes améliorées -->
+    <transition name="fade" mode="out-in">
+      <div 
+        v-if="!!notification"
+        class="fixed top-4 right-4 max-w-md z-50 transform transition-all duration-300"
+      >
+        <div 
+          class="bento-card p-4 border-l-4 shadow-lg transition-all"
+          :class="{
+            'border-green-500 bg-green-50 dark:bg-green-900/20': notification?.type === 'success',
+            'border-red-500 bg-red-50 dark:bg-red-900/20': notification?.type === 'error',
+            'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20': notification?.type === 'warn',
+            'border-blue-500 bg-blue-50 dark:bg-blue-900/20': notification?.type === 'info'
+          }"
+        >
+          <div class="flex items-start">
+            <!-- Icône basée sur le type -->
+            <div class="flex-shrink-0">
+              <CheckCircleIcon v-if="notification?.type === 'success'" class="h-5 w-5 text-green-500" />
+              <ExclamationCircleIcon v-if="notification?.type === 'error'" class="h-5 w-5 text-red-500" />
+              <InformationCircleIcon v-if="notification?.type === 'info'" class="h-5 w-5 text-blue-500" />
+              <ExclamationTriangleIcon v-if="notification?.type === 'warn'" class="h-5 w-5 text-yellow-500" />
+            </div>
+            <!-- Contenu -->
+            <div class="ml-3 w-0 flex-1 pt-0.5">
+              <p class="text-sm font-medium text-mocha-900 dark:text-mocha-100">
+                {{ notification?.title }}
+              </p>
+              <p class="mt-1 text-sm text-mocha-600 dark:text-mocha-300">
+                {{ notification?.message }}
+              </p>
+            </div>
+            <!-- Bouton fermer -->
+            <div class="ml-4 flex-shrink-0 flex">
+              <button
+                @click="closeNotification"
+                class="inline-flex text-mocha-400 focus:outline-none focus:text-mocha-500 hover:text-mocha-500 transition-all"
+              >
+                <XMarkIcon class="h-5 w-5" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </transition>
+
+    <!-- Pop-up de vérification du compte -->
+    <transition name="fade">
+      <div v-if="showAccountVerification" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center backdrop-blur-glass animate-fade-in z-50">
+        <div class="bento-card p-6 max-w-md w-full animate-scale-up">
+          <div class="mb-4 flex items-center">
+            <ShieldExclamationIcon class="h-6 w-6 text-yellow-500 mr-2" />
+            <h3 class="heading-3">
+              Est-ce vraiment votre compte ?
+            </h3>
+          </div>
+          
+          <p class="text-body mb-6">
+            Nous avons détecté plusieurs tentatives de connexion échouées. Si vous avez oublié vos identifiants, vous pouvez utiliser la fonction "Mot de passe oublié".
+          </p>
+          <div class="flex justify-end space-x-4">
+            <button
+              @click="showAccountVerification = false"
+              class="btn-secondary"
+            >
+              Fermer
+            </button>
+            <button
+              @click="handleForgotPassword"
+              class="btn-primary"
+            >
+              Réinitialiser le mot de passe
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useVuelidate } from '@vuelidate/core'
 import { required, email } from '@vuelidate/validators'
-import { ExclamationCircleIcon, EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
-import AuthNotification from '@/components/auth/AuthNotification.vue'
+import { 
+  ExclamationCircleIcon, 
+  ExclamationTriangleIcon,
+  EyeIcon, 
+  EyeSlashIcon, 
+  XMarkIcon,
+  CheckCircleIcon,
+  InformationCircleIcon,
+  EnvelopeIcon,
+  LockClosedIcon,
+  ShieldExclamationIcon
+} from '@heroicons/vue/24/outline'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
+// Initialisation avec valeurs par défaut
 const formData = ref({
   email: '',
   password: ''
@@ -209,154 +296,302 @@ const lastAttemptTime = ref(Date.now())
 const showAccountVerification = ref(false)
 const isNavigating = ref(false)
 
-const notification = ref<{
-  type: 'success' | 'error'
+// Désactiver le bouton si formulaire invalide
+const isSubmitDisabled = computed(() => {
+  return !formData.value.email || !formData.value.password
+})
+
+// Notification améliorée avec système de file d'attente et timeout
+const notificationQueue = ref<Array<{
+  type: 'success' | 'error' | 'info' | 'warn'
   title: string
   message: string
+  timeout?: number
+}>>([])
+
+const notification = ref<{
+  type: 'success' | 'error' | 'info' | 'warn'
+  title: string
+  message: string
+  timeout?: number
 } | null>(null)
 
+let notificationTimer: number | null = null
+
+// Examen des paramètres d'URL pour les messages
+onMounted(() => {
+  // Vérifier si on a été redirigé avec un message
+  if (route.query.session === 'expired') {
+    showNotification({
+      type: 'warn',
+      title: 'Session expirée',
+      message: 'Votre session a expiré. Veuillez vous reconnecter.',
+      timeout: 6000
+    })
+  }
+  
+  // Vérifier si l'utilisateur est déjà connecté
+  if (authStore.isAuthenticated) {
+    router.push('/home')
+    return
+  }
+  
+  // Charger email mémorisé
+  initRememberedEmail()
+  
+  // Focus sur le premier champ vide
+  nextTick(() => {
+    if (!formData.value.email) {
+      document.getElementById('email')?.focus()
+    } else if (!formData.value.password) {
+      document.getElementById('password')?.focus()
+    }
+  })
+})
+
+// Vérification personnalisée d'email
+const isValidEmail = (email: string): boolean => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+// Effacer les erreurs quand l'utilisateur modifie les champs
+const clearEmailError = () => {
+  emailError.value = ''
+}
+
+const clearPasswordError = () => {
+  passwordError.value = ''
+}
+
+// Système de gestion des notifications
+const showNotification = (notif: {
+  type: 'success' | 'error' | 'info' | 'warn',
+  title: string,
+  message: string,
+  timeout?: number
+}) => {
+  notificationQueue.value.push(notif)
+  
+  if (!notification.value) {
+    processNextNotification()
+  }
+}
+
+const processNextNotification = () => {
+  if (notificationQueue.value.length === 0) {
+    notification.value = null
+    return
+  }
+  
+  notification.value = notificationQueue.value.shift() || null
+  
+  if (notification.value && notification.value.timeout) {
+    if (notificationTimer) {
+      clearTimeout(notificationTimer)
+    }
+    notificationTimer = window.setTimeout(() => {
+      closeNotification()
+    }, notification.value!.timeout)
+  }
+}
+
+const closeNotification = () => {
+  if (notificationTimer) {
+    clearTimeout(notificationTimer)
+    notificationTimer = null
+  }
+  
+  notification.value = null
+  
+  // Traiter la prochaine notification s'il y en a
+  nextTick(() => {
+    processNextNotification()
+  })
+}
+
+// Soumission du formulaire avec validation améliorée
 const handleSubmit = async () => {
-  if (isNavigating.value) return
+  if (isNavigating.value || isLoading.value) return
   
   try {
     emailError.value = ''
     passwordError.value = ''
-    notification.value = null
     
+    // Validation du formulaire
     const isValid = await v$.value.$validate()
-    if (!isValid) return
-
-    // Vérifier les tentatives de connexion
-    const currentTime = Date.now()
-    if (currentTime - lastAttemptTime.value < 15000) {
-      loginAttempts.value++
-      if (loginAttempts.value >= 5) {
-        showAccountVerification.value = true
-        loginAttempts.value = 0
-        return
+    if (!isValid) {
+      // Ajouter du feedback visuel pour les champs invalides
+      if (v$.value.email.$error) {
+        emailError.value = 'Veuillez saisir une adresse email valide'
       }
-    } else {
-      loginAttempts.value = 1
+      if (v$.value.password.$error) {
+        passwordError.value = 'Veuillez saisir votre mot de passe'
+      }
+      return
     }
+    
+    // Protection contre les tentatives multiples rapides
+    const currentTime = Date.now()
+    if (currentTime - lastAttemptTime.value < 2000) {
+      showNotification({
+        type: 'warn',
+        title: 'Tentative trop rapide',
+        message: 'Veuillez patienter quelques secondes avant de réessayer',
+        timeout: 3000
+      })
+      return
+    }
+    
     lastAttemptTime.value = currentTime
-
     isLoading.value = true
-
-    console.log("Tentative de connexion avec:", { 
-      email: formData.value.email,
-      password: formData.value.password.substring(0, 3) + "..." // Ne pas logger le mot de passe complet
-    })
-
+    
+    // Tentative de connexion
     const success = await authStore.login({
       email: formData.value.email,
       password: formData.value.password
     })
-
-    // Après la connexion réussie
+    
     if (success) {
-      // Vérifier que le token a été correctement défini
-      const storedToken = localStorage.getItem('token')
-      console.log("Token stocké dans localStorage après connexion:", storedToken ? "Oui" : "Non", storedToken?.substr(0, 10) + "...")
+      loginAttempts.value = 0 // Réinitialiser le compteur d'échecs
       
-      if (!storedToken) {
-        throw new Error("Le token n'a pas été correctement stocké")
+      // Sauvegarder l'email si "se souvenir de moi" est coché
+      if (rememberMe.value) {
+        localStorage.setItem('remembered_email', formData.value.email)
+      } else {
+        localStorage.removeItem('remembered_email')
       }
       
-      console.log("Connexion réussie, préparation redirection vers:", route.query.redirect?.toString() || '/home')
-      
-      // Forcer une mise à jour de l'état d'authentification
-      authStore.isVerified = true
-      
-      notification.value = {
+      // Notification de succès
+      showNotification({
         type: 'success',
         title: 'Connexion réussie',
-        message: 'Vous allez être redirigé...'
-      }
-
-      // Gestion du "Se souvenir de moi" 
-      if (rememberMe.value) {
-        localStorage.setItem('rememberedEmail', formData.value.email)
-      } else {
-        localStorage.removeItem('rememberedEmail')
-      }
-
-      // Ajout de logs pour déboguer
-      await nextTick()
-      console.log("État avant navigation:", {
-        isAuthenticated: authStore.isAuthenticated,
-        token: !!authStore.token,
-        isVerified: authStore.isVerified
+        message: 'Vous êtes maintenant connecté',
+        timeout: 2000
       })
-
-      // Utilisation de la navigation sécurisée
-      isNavigating.value = true
-      const redirectPath = route.query.redirect?.toString() || '/home'
       
-      try {
-        // Délai court pour permettre au token d'être correctement enregistré
-        setTimeout(async () => {
-          try {
-            await router.push(redirectPath)
-            console.log("Navigation réussie vers:", redirectPath)
-          } catch (navError) {
-            console.error("Erreur de navigation:", navError)
-            window.location.href = redirectPath // Fallback en cas d'échec
-          } finally {
-            isNavigating.value = false
-          }
-        }, 300)
-      } catch (error) {
-        console.error("Erreur dans le timeout:", error)
-        isNavigating.value = false
-      }
-    }
-  } catch (error: any) {
-    console.error('Login error:', error)
-    
-    // Gestion des erreurs spécifiques en fonction de votre store
-    const errorMessage = error.message || authStore.error || 'Une erreur est survenue'
-    
-    if (errorMessage.includes('Email ou mot de passe incorrect') || 
-        errorMessage.includes('Mot de passe incorrect')) {
-      passwordError.value = 'Mot de passe incorrect'
-    } else if (errorMessage.includes('Email') || errorMessage.toLowerCase().includes('mail')) {
-      emailError.value = 'Mail inconnu'
-    } else if (errorMessage.includes('désactivé')) {
-      notification.value = {
-        type: 'error',
-        title: 'Compte désactivé',
-        message: 'Votre compte a été désactivé. Veuillez contacter le support.'
-      }
+      // Redirection après un court délai pour permettre à l'utilisateur de voir la notification
+      isNavigating.value = true
+      setTimeout(() => {
+        const redirectPath = route.query.redirect as string || '/home'
+        router.push(redirectPath)
+      }, 500)
     } else {
-      notification.value = {
-        type: 'error',
-        title: 'Erreur',
-        message: errorMessage
+      // Gestion des échecs de connexion
+      loginAttempts.value++
+      
+      // Adapter le message d'erreur en fonction de la réponse du store
+      if (authStore.error) {
+        if (authStore.error.includes('mot de passe')) {
+          passwordError.value = authStore.error
+        } else if (authStore.error.includes('email')) {
+          emailError.value = authStore.error
+        } else {
+          // Afficher une notification pour les autres types d'erreurs
+          showNotification({
+            type: 'error',
+            title: 'Erreur de connexion',
+            message: authStore.error,
+            timeout: 5000
+          })
+        }
+      } else {
+        showNotification({
+          type: 'error',
+          title: 'Erreur de connexion',
+          message: 'Une erreur est survenue lors de la connexion',
+          timeout: 5000
+        })
+      }
+      
+      // Afficher la popup de vérification après plusieurs échecs
+      if (loginAttempts.value >= 3) {
+        showAccountVerification.value = true
       }
     }
+  } catch (error) {
+    console.error('Erreur lors de la connexion:', error)
+    showNotification({
+      type: 'error',
+      title: 'Erreur système',
+      message: 'Une erreur inattendue est survenue. Veuillez réessayer.',
+      timeout: 5000
+    })
   } finally {
     isLoading.value = false
   }
 }
 
+// Gestion du mot de passe oublié
 const handleForgotPassword = () => {
-  router.push('/auth/forgot-password')
+  showAccountVerification.value = false // Fermer la popup si ouverte
+  
+  if (formData.value.email && isValidEmail(formData.value.email)) {
+    // Rediriger vers la page de récupération de mot de passe avec l'email pré-rempli
+    router.push({
+      path: '/forgot-password',
+      query: { email: formData.value.email }
+    })
+  } else {
+    // Demander à l'utilisateur de saisir son email d'abord
+    emailError.value = 'Veuillez saisir votre email pour réinitialiser votre mot de passe'
+    document.getElementById('email')?.focus()
+    
+    showNotification({
+      type: 'info',
+      title: 'Email requis',
+      message: 'Veuillez saisir votre adresse email pour réinitialiser votre mot de passe',
+      timeout: 4000
+    })
+  }
 }
 
-// Charger l'email mémorisé si "Se souvenir de moi" était activé
+// Récupérer l'email mémorisé si disponible
 const initRememberedEmail = () => {
-  const rememberedEmail = localStorage.getItem('rememberedEmail')
-  if (rememberedEmail) {
-    formData.value.email = rememberedEmail
+  const savedEmail = localStorage.getItem('remembered_email')
+  if (savedEmail) {
+    formData.value.email = savedEmail
     rememberMe.value = true
   }
 }
 
-// Vérifier si l'utilisateur est déjà connecté
-onMounted(() => {
-  if (authStore.isAuthenticated) {
-    router.push('/home')
+// Gérer les erreurs du store d'authentification
+watch(() => authStore.error, (newError) => {
+  if (newError) {
+    if (newError.toLowerCase().includes('email')) {
+      emailError.value = newError
+    } else if (newError.toLowerCase().includes('mot de passe')) {
+      passwordError.value = newError
+    }
   }
-  initRememberedEmail()
 })
 </script>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.animate-scale-up {
+  animation: scaleUp 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+</style>
