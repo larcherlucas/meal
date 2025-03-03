@@ -1,240 +1,312 @@
-// auth.ts (Store optimisé)
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import router from '@/router'
 import { apiService } from '@/api/config'
-import { navigateTo } from '@/utils/router-helpers'
+import { User, LoginCredentials, SignupData, AuthResponse } from '@/types/index'
+import { useNotificationStore } from '@/stores/NotificationStore'
+import router from '@/router'
 
-interface User {
-  id: string;
-  email: string;
-  role?: string;
-  subscription?: {
-    isActive: boolean;
-  };
-}
-
-interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-// Clé pour localStorage
+// Clés pour le stockage local
 const TOKEN_KEY = 'auth_token'
-let isInitializing = false;
-let isLoggingOut = false;
+const USER_KEY = 'user_data'
+const TOKEN_EXPIRY_KEY = 'token_expiry'
+
+// Durée par défaut du token (2 heures)
+const TOKEN_DURATION = 7200000 // 2 heures en millisecondes
 
 export const useAuthStore = defineStore('auth', () => {
+  // États réactifs
   const user = ref<User | null>(null)
   const token = ref<string | null>(localStorage.getItem(TOKEN_KEY))
-  const loading = ref(false)
+  const tokenExpiry = ref<number | null>(
+    localStorage.getItem(TOKEN_EXPIRY_KEY) 
+      ? Number(localStorage.getItem(TOKEN_EXPIRY_KEY)) 
+      : null
+  )
+  const isLoading = ref(false)
   const error = ref<string | null>(null)
-  const isInitialized = ref(false)
   const isVerified = ref(false)
-  
-  const hasActiveSubscription = computed(() => user.value?.subscription?.isActive || false)
-  
-  // Simplifié et plus logique
-  const isAuthenticated = computed(() => !!token.value && isVerified.value)
-  const isAdmin = computed(() => user.value?.role === 'admin')
 
-  // Fonction unique d'initialisation
-  const initialize = async () => {
-    if (isInitializing) return;
-    isInitializing = true;
-    
-    try {
-      const savedToken = localStorage.getItem(TOKEN_KEY)
-      
-      if (!savedToken) {
-        isInitialized.value = true
-        isInitializing = false
-        return
-      }
-      
-      token.value = savedToken
-      
+  // Initialisation du store
+  const initializeUser = () => {
+    const savedUser = localStorage.getItem(USER_KEY)
+    if (savedUser) {
       try {
-        // Vérifier la validité du token
-        await apiService.account.verifyToken()
-        isVerified.value = true
-        
-        // Récupérer les données utilisateur
-        await fetchUser()
-      } catch (err) {
-        console.error('Token invalide ou erreur lors de la vérification:', err)
-        await clearAuthData()
+        user.value = JSON.parse(savedUser)
+      } catch (e) {
+        console.error('Erreur lors du parsing des données utilisateur')
+        resetAuthState()
       }
-    } finally {
-      isInitialized.value = true
-      isInitializing = false
+    }
+    
+    // Vérifier si le token est expiré côté client
+    if (tokenExpiry.value && Date.now() > tokenExpiry.value) {
+      resetAuthState()
     }
   }
 
-  const clearAuthData = async () => {
-    user.value = null
+  // Computed properties
+  const isAuthenticated = computed(() => !!token.value && !!user.value)
+  const isAdmin = computed(() => user.value?.role === 'admin')
+  const hasActiveSubscription = computed(() => 
+    !!user.value?.subscription?.isActive
+  )
+  
+  const userPreferences = computed(() => 
+    user.value?.preferences || { language: 'fr', theme: 'light' }
+  )
+
+  // Méthode pour réinitialiser l'état d'authentification
+  const resetAuthState = () => {
     token.value = null
+    user.value = null
+    tokenExpiry.value = null
     isVerified.value = false
     localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(USER_KEY)
+    localStorage.removeItem(TOKEN_EXPIRY_KEY)
   }
 
-  const fetchUser = async () => {
-    if (!token.value || !isVerified.value) return
+  // Méthode pour sauvegarder l'état d'authentification
+  const saveAuthState = (authData: { token: string; user: User; expiresIn?: number }) => {
+    token.value = authData.token
+    user.value = authData.user
     
-    try {
-      // Utiliser l'endpoint du profil utilisateur au lieu de getAll
-      const response = await apiService.account.getOne  // Endpoint /account/me
-      // OU si apiService n'a pas cette méthode:
-      // const response = await api.get('/account/me')
-      user.value = response.data
-    } catch (err) {
-      console.error('Erreur lors de la récupération du profil:', err)
-      error.value = 'Erreur lors de la récupération du profil'
-    }
+    // Calculer l'expiration du token (par défaut 2 heures si non spécifié)
+    const expiresIn = authData.expiresIn || TOKEN_DURATION
+    tokenExpiry.value = Date.now() + expiresIn
+    
+    // Sauvegarder dans le localStorage
+    localStorage.setItem(TOKEN_KEY, authData.token)
+    localStorage.setItem(USER_KEY, JSON.stringify(authData.user))
+    localStorage.setItem(TOKEN_EXPIRY_KEY, String(tokenExpiry.value))
+    
+    isVerified.value = true
   }
-  const setSession = (authToken: string, userData: User) => {
-    token.value = authToken;
-    user.value = userData;
-    localStorage.setItem(TOKEN_KEY, authToken);
-    isVerified.value = true;
-    return true;
-  };
-  const signup = async (userData: any) => {
-    loading.value = true
+
+  // Login
+  async function login(credentials: LoginCredentials) {
+    const notificationStore = useNotificationStore()
+    isLoading.value = true
     error.value = null
 
     try {
-      const response = await apiService.auth.signup(userData)
-      
-      // Extraction sécurisée du token
-      const responseData = response.data
-      const responseToken = responseData.token || (responseData.data && responseData.data.token)
-      
-      if (!responseToken) {
-        throw new Error('Token non trouvé dans la réponse')
+      // Vérifier si le login a été mémorisé
+      if (credentials.rememberMe) {
+        localStorage.setItem('remembered_email', credentials.email)
+      } else {
+        localStorage.removeItem('remembered_email')
       }
       
-      // Enregistrement du token
-      token.value = responseToken
-      localStorage.setItem(TOKEN_KEY, responseToken)
-      isVerified.value = true
+      const response = await apiService.post<AuthResponse>('/login', credentials)
       
-      // Vérification du stockage et récupération du profil
-      await fetchUser()
+      // Vérification des données requises
+      if (!response.token || !response.user) {
+        throw new Error('Réponse du serveur invalide')
+      }
+      
+      // Sauvegarder l'état d'authentification
+      saveAuthState(response)
+      
+      notificationStore.success('Connexion réussie', 'Bienvenue ' + response.user.username)
+      
+      // Redirection
+      const redirectUrl = router.currentRoute.value.query.redirect as string || '/home'
+      await router.push(redirectUrl)
+      
       return true
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Erreur lors de l\'inscription'
+      const errorMessage = err.message || 'Erreur de connexion'
       error.value = errorMessage
-      console.error('Erreur d\'inscription:', err, errorMessage)
+      
+      // Pas besoin de notification ici car elle est déjà gérée par l'intercepteur API
       return false
     } finally {
-      loading.value = false
+      isLoading.value = false
     }
   }
-
-  const login = async (credentials: LoginCredentials) => {
-    loading.value = true
-    error.value = null
   
+  // Inscription
+  async function signup(data: SignupData) {
+    const notificationStore = useNotificationStore()
+    isLoading.value = true
+    error.value = null
+
     try {
-      const response = await apiService.auth.login(credentials)
-      
-      // Extraction sécurisée du token avec structure plus robuste
-      const responseData = response.data
-      const responseToken = responseData.token || (responseData.data && responseData.data.token)
-      
-      if (!responseToken) {
-        console.error("Structure de réponse inattendue:", responseData)
-        throw new Error('Token non trouvé dans la réponse')
+      // S'assurer que les mots de passe correspondent
+      if (data.password !== data.confirmPassword) {
+        throw new Error('Les mots de passe ne correspondent pas')
       }
       
-      // Stockage du token
-      token.value = responseToken
-      localStorage.setItem(TOKEN_KEY, responseToken)
-      isVerified.value = true
+      // Préparer le payload selon l'attente du backend
+      const signupPayload = {
+        username: data.username,
+        email: data.email,
+        password: data.password,
+        confirmPassword: data.confirmPassword,
+        household_members: data.householdMembers,
+        preferences: data.preferences
+      }
       
-      // Récupération du profil utilisateur
-      await fetchUser()
+      const response = await apiService.post<AuthResponse>('/signup', signupPayload)
+      
+      // Vérification des données requises
+      if (!response.token || !response.user) {
+        throw new Error('Réponse du serveur invalide')
+      }
+      
+      // Sauvegarder l'état d'authentification
+      saveAuthState(response)
+      
+      notificationStore.success(
+        'Inscription réussie', 
+        'Bienvenue sur notre plateforme de menus familiaux !'
+      )
+      
+      // Redirection vers la page d'accueil
+      await router.push('/home')
       return true
     } catch (err: any) {
-      // Gestion des erreurs améliorée
-      let errorMessage = 'Erreur de connexion'
-      
-      if (err.response) {
-        if (err.response.status === 401) {
-          errorMessage = 'Email ou mot de passe incorrect'
-        } else if (err.response.status === 403) {
-          errorMessage = 'Compte désactivé ou non vérifié'
-        } else if (err.response.data?.message) {
-          errorMessage = err.response.data.message
-        }
-      }
-      
+      const errorMessage = err.message || 'Erreur lors de l\'inscription'
       error.value = errorMessage
-      console.error('Erreur de connexion:', err, errorMessage)
+      
+      // Pas besoin de notification ici car elle est déjà gérée par l'intercepteur API
       return false
     } finally {
-      loading.value = false
+      isLoading.value = false
     }
   }
 
-  const logout = async () => {
-    if (isLoggingOut) return;
-    isLoggingOut = true;
+  // Déconnexion
+  async function logout(callApi = true) {
+    const notificationStore = useNotificationStore()
     
     try {
-      // Appel API de déconnexion seulement si on a un token valide
-      if (token.value && isVerified.value) {
-        try {
-          await apiService.auth.logout()
-        } catch (err) {
-          console.warn('Erreur lors de la déconnexion API:', err)
-          // On continue la déconnexion côté client même si l'API échoue
-        }
+      // Appel API de déconnexion seulement si demandé
+      if (callApi && token.value) {
+        await apiService.post('/logout')
       }
-    } finally {
-      // Nettoyage local toujours exécuté
-      await clearAuthData()
-      isLoggingOut = false
-    }
-    
-    // Redirection après le nettoyage
-    await navigateTo('/login')
-  }
-
-  // Alias pour rétrocompatibilité
-  const initializeAuth = initialize
-  const verifyToken = async () => {
-    if (!token.value) return false
-    try {
-      await apiService.account.verifyToken()
-      isVerified.value = true
+      
+      // Réinitialiser l'état d'authentification
+      resetAuthState()
+      
+      notificationStore.success('Déconnexion réussie', 'À bientôt !')
+      
+      // Redirection vers la page de login
+      if (router.currentRoute.value.meta.requiresAuth) {
+        await router.push('/login')
+      }
+      
       return true
     } catch (err) {
-      console.error('Erreur de vérification du token:', err)
-      isVerified.value = false
-      await clearAuthData()
+      // Même en cas d'erreur, réinitialiser l'état d'authentification
+      resetAuthState()
+      
+      notificationStore.error(
+        'Erreur lors de la déconnexion', 
+        'Votre session a été fermée localement'
+      )
+      
+      // Redirection vers la page de login
+      if (router.currentRoute.value.meta.requiresAuth) {
+        await router.push('/login')
+      }
+      
       return false
     }
   }
+
+  // Vérification du token
+  async function verifyToken() {
+    if (!token.value) return false
+
+    try {
+      isLoading.value = true
+      const response = await apiService.post<{ user: User }>('/verify-token')
+      
+      // Mettre à jour les informations utilisateur
+      if (response.user) {
+        user.value = response.user
+        localStorage.setItem(USER_KEY, JSON.stringify(response.user))
+        isVerified.value = true
+      } else {
+        throw new Error('Données utilisateur non disponibles')
+      }
+      
+      return true
+    } catch (err) {
+      // Token invalide, déconnecter
+      await logout(false) // false = ne pas appeler l'API logout
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // Mise à jour du profil
+  async function updateProfile(profileData: Partial<User>) {
+    const notificationStore = useNotificationStore()
+    isLoading.value = true
+    
+    try {
+      const updatedUser = await apiService.patch<User>('/profile', profileData)
+      
+      // Mettre à jour l'utilisateur
+      if (updatedUser) {
+        user.value = updatedUser
+        localStorage.setItem(USER_KEY, JSON.stringify(updatedUser))
+        notificationStore.success('Profil mis à jour', 'Vos informations ont été enregistrées')
+        return true
+      } else {
+        throw new Error('Données utilisateur non disponibles')
+      }
+    } catch (err: any) {
+      const errorMessage = err.message || 'Erreur lors de la mise à jour du profil'
+      error.value = errorMessage
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+  
+  // Mise à jour des préférences
+  async function updatePreferences(preferences: Record<string, any>) {
+    if (!user.value) return false
+    
+    return updateProfile({ preferences })
+  }
+  
+  // Mise à jour de la composition du foyer
+  async function updateHouseholdMembers(householdMembers: Record<string, number>) {
+    if (!user.value) return false
+    
+    return updateProfile({ household_members: householdMembers })
+  }
+
+  // Initialiser au chargement du store
+  initializeUser()
 
   return {
+    // États
     user,
     token,
-    loading,
+    tokenExpiry,
+    isLoading,
     error,
-    isInitialized,
-    isVerified,
+    isVerified,  
+
+    // Computed
     isAuthenticated,
     isAdmin,
     hasActiveSubscription,
-    initialize,
-    initializeAuth,
-    verifyToken,
-    fetchUser,
-    signup,
+    userPreferences,
+
+    // Actions
     login,
-    setSession,
-    logout
+    signup,
+    logout,
+    verifyToken,
+    updateProfile,
+    updatePreferences,
+    updateHouseholdMembers
   }
 })

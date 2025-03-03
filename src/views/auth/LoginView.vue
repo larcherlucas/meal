@@ -411,113 +411,38 @@ const closeNotification = () => {
 
 // Soumission du formulaire avec validation améliorée
 const handleSubmit = async () => {
-  if (isNavigating.value || isLoading.value) return
+  console.log('Formulaire de connexion soumis')
   
   try {
-    emailError.value = ''
-    passwordError.value = ''
-    
     // Validation du formulaire
     const isValid = await v$.value.$validate()
     if (!isValid) {
-      // Ajouter du feedback visuel pour les champs invalides
-      if (v$.value.email.$error) {
-        emailError.value = 'Veuillez saisir une adresse email valide'
-      }
-      if (v$.value.password.$error) {
-        passwordError.value = 'Veuillez saisir votre mot de passe'
-      }
+      console.log('Validation du formulaire échouée')
       return
     }
     
-    // Protection contre les tentatives multiples rapides
-    const currentTime = Date.now()
-    if (currentTime - lastAttemptTime.value < 2000) {
-      showNotification({
-        type: 'warn',
-        title: 'Tentative trop rapide',
-        message: 'Veuillez patienter quelques secondes avant de réessayer',
-        timeout: 3000
-      })
-      return
-    }
-    
-    lastAttemptTime.value = currentTime
+    // Réinitialiser les états
     isLoading.value = true
+    isNavigating.value = true
     
-    // Tentative de connexion
     const success = await authStore.login({
       email: formData.value.email,
       password: formData.value.password
     })
     
-    if (success) {
-      loginAttempts.value = 0 // Réinitialiser le compteur d'échecs
-      
-      // Sauvegarder l'email si "se souvenir de moi" est coché
-      if (rememberMe.value) {
-        localStorage.setItem('remembered_email', formData.value.email)
-      } else {
-        localStorage.removeItem('remembered_email')
-      }
-      
-      // Notification de succès
-      showNotification({
-        type: 'success',
-        title: 'Connexion réussie',
-        message: 'Vous êtes maintenant connecté',
-        timeout: 2000
-      })
-      
-      // Redirection après un court délai pour permettre à l'utilisateur de voir la notification
-      isNavigating.value = true
-      setTimeout(() => {
-        const redirectPath = route.query.redirect as string || '/home'
-        router.push(redirectPath)
-      }, 500)
-    } else {
-      // Gestion des échecs de connexion
-      loginAttempts.value++
-      
-      // Adapter le message d'erreur en fonction de la réponse du store
-      if (authStore.error) {
-        if (authStore.error.includes('mot de passe')) {
-          passwordError.value = authStore.error
-        } else if (authStore.error.includes('email')) {
-          emailError.value = authStore.error
-        } else {
-          // Afficher une notification pour les autres types d'erreurs
-          showNotification({
-            type: 'error',
-            title: 'Erreur de connexion',
-            message: authStore.error,
-            timeout: 5000
-          })
-        }
-      } else {
-        showNotification({
-          type: 'error',
-          title: 'Erreur de connexion',
-          message: 'Une erreur est survenue lors de la connexion',
-          timeout: 5000
-        })
-      }
-      
-      // Afficher la popup de vérification après plusieurs échecs
-      if (loginAttempts.value >= 3) {
-        showAccountVerification.value = true
-      }
-    }
-  } catch (error) {
-    console.error('Erreur lors de la connexion:', error)
-    showNotification({
-      type: 'error',
-      title: 'Erreur système',
-      message: 'Une erreur inattendue est survenue. Veuillez réessayer.',
-      timeout: 5000
+    console.log('Résultat de la connexion :', success)
+    
+    // Vérification manuelle de l'authentification
+    console.log('État du store après connexion:', {
+      isAuthenticated: authStore.isAuthenticated,
+      user: authStore.user,
+      token: authStore.token
     })
+  } catch (error) {
+    console.error('Erreur lors de la connexion', error)
   } finally {
     isLoading.value = false
+    isNavigating.value = false
   }
 }
 

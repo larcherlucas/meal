@@ -11,4 +11,7 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
+// Initialiser les plugins et configurer l'application
+import './plugins/auth'  // Plugin d'authentification global
+
 app.mount('#app')

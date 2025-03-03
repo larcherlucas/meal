@@ -1,191 +1,255 @@
-import axios, { AxiosError, AxiosRequestConfig } from 'axios'
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/NotificationStore'
+import router from '@/router'
 
-// Temps entre les retry sur les erreurs réseau
+// Types pour les réponses API standardisées
+export interface ApiSuccessResponse<T> {
+  status: 'success'
+  data: T
+  message?: string
+}
+
+export interface ApiErrorResponse {
+  error: string
+  status?: number
+  errors?: Record<string, string>
+}
+
+// Configuration des erreurs personnalisées
+export class ApiError extends Error {
+  status?: number
+  errors?: Record<string, string>
+
+  constructor(
+    message: string, 
+    status?: number, 
+    errors?: Record<string, string>
+  ) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.errors = errors
+  }
+}
+
+// Configuration des temps de retry
 const RETRY_DELAY = 1000
 const MAX_RETRIES = 2
 
-const api = axios.create({
+// Création de l'instance Axios avec configuration de base
+const api: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
-  timeout: 15000, // Timeout augmenté pour les réseaux lents
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 })
 
-// Flag pour éviter des redirections multiples
-let isHandlingAuthError = false
-
-// Intercepteur de requêtes amélioré
+// Intercepteur de requêtes
 api.interceptors.request.use(
   (config) => {
     const authStore = useAuthStore()
+    
+    // Ajouter le token si disponible
     if (authStore.token) {
       config.headers.Authorization = `Bearer ${authStore.token}`
     }
     
-    // Ajouter un ID unique pour traquer les requêtes
+    // ID unique de requête pour le tracking
     config.headers['X-Request-ID'] = `req-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
+    
+    // Ajouter la langue si disponible (utile pour l'internationalisation)
+    if (authStore.user?.preferences?.language) {
+      config.headers['Accept-Language'] = authStore.user.preferences.language
+    }
     
     return config
   },
-  (error) => {
-    console.error('Erreur de requête:', error)
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// Intercepteur de réponses amélioré avec gestion des retries
+// Intercepteur de réponses avec gestion avancée
 api.interceptors.response.use(
-  (response) => response,
+  (response: AxiosResponse) => {
+    // Si la réponse est déjà dans le format attendu, la retourner telle quelle
+    if (response.data && response.data.status === 'success') {
+      return response.data
+    }
+    
+    // Sinon, normaliser la structure
+    return {
+      status: 'success',
+      data: response.data
+    }
+  },
   async (error: AxiosError) => {
+    const notificationStore = useNotificationStore()
+    const authStore = useAuthStore()
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: number }
     
-    // Gestion des erreurs réseau (pas de connexion)
-    if (!error.response && !originalRequest._retry) {
-      originalRequest._retry = (originalRequest._retry || 0) + 1
+    // Cas où il n'y a pas de réponse (erreur réseau)
+    if (!error.response) {
+      notificationStore.error(
+        'Erreur de connexion',
+        'Problème de connexion réseau. Veuillez vérifier votre connexion Internet.'
+      )
+      return Promise.reject(new ApiError('Problème de connexion réseau'))
+    }
+
+    const status = error.response.status
+    const errorData = error.response.data as ApiErrorResponse | string
+    
+    // Extraction du message d'erreur
+    const errorMessage = typeof errorData === 'string' 
+      ? errorData 
+      : errorData.error || 'Une erreur est survenue'
+    
+    // Gestion des erreurs 401 (non authentifié)
+    if (status === 401) {
+      // Ne pas afficher de notification si on est déjà sur la page de login
+      if (router.currentRoute.value.path !== '/login') {
+        notificationStore.error(
+          'Session expirée', 
+          'Votre session a expiré. Veuillez vous reconnecter.'
+        )
+      }
       
-      if (originalRequest._retry <= MAX_RETRIES) {
-        console.log(`Tentative de reconnexion (${originalRequest._retry}/${MAX_RETRIES})...`)
+      // Déconnecter l'utilisateur et rediriger vers la page de login
+      await authStore.logout(false) // false = ne pas appeler l'API logout
+      
+      // Rediriger sauf si on est déjà sur login
+      if (router.currentRoute.value.path !== '/login') {
+        router.push({ 
+          path: '/login', 
+          query: { session: 'expired', redirect: router.currentRoute.value.fullPath }
+        })
+      }
+      
+      return Promise.reject(new ApiError(errorMessage, status))
+    }
+    
+    // Gestion des erreurs 403 (accès interdit)
+    if (status === 403) {
+      notificationStore.error(
+        'Accès refusé',
+        'Vous n\'avez pas les permissions nécessaires pour effectuer cette action.'
+      )
+      
+      // Si l'erreur concerne un abonnement requis, rediriger vers la page d'abonnement
+      if (errorMessage.toLowerCase().includes('abonnement') || 
+          errorMessage.toLowerCase().includes('premium')) {
+        router.push('/subscription')
+      }
+      
+      return Promise.reject(new ApiError(errorMessage, status))
+    }
+    
+    // Gestion des erreurs 404 (ressource non trouvée)
+    if (status === 404) {
+      notificationStore.error(
+        'Ressource introuvable',
+        errorMessage
+      )
+      return Promise.reject(new ApiError(errorMessage, status))
+    }
+    
+    // Gestion des erreurs 409 (conflit)
+    if (status === 409) {
+      notificationStore.error(
+        'Conflit',
+        errorMessage
+      )
+      return Promise.reject(new ApiError(errorMessage, status))
+    }
+    
+    // Gestion des erreurs 422 (validation)
+    if (status === 422) {
+      // Extraire les erreurs de validation
+      const validationErrors = typeof errorData === 'object' && errorData.errors 
+        ? errorData.errors 
+        : {}
+      
+      notificationStore.error(
+        'Erreur de validation',
+        Object.values(validationErrors).join(', ') || errorMessage
+      )
+      
+      return Promise.reject(new ApiError(
+        errorMessage, 
+        status, 
+        validationErrors
+      ))
+    }
+    
+    // Gestion générique des erreurs serveur (5xx)
+    if (status >= 500) {
+      notificationStore.error(
+        'Erreur serveur',
+        'Une erreur est survenue sur notre serveur. Veuillez réessayer ultérieurement.'
+      )
+      
+      // Tentative de retry pour les erreurs serveur
+      if (!originalRequest._retry) {
+        originalRequest._retry = 1
         
         return new Promise(resolve => {
           setTimeout(() => {
             resolve(api(originalRequest))
           }, RETRY_DELAY)
         })
+      } else if (originalRequest._retry < MAX_RETRIES) {
+        originalRequest._retry++
+        
+        return new Promise(resolve => {
+          setTimeout(() => {
+            resolve(api(originalRequest))
+          }, RETRY_DELAY * originalRequest._retry)
+        })
       }
-    }
-    
-    // Gestion des erreurs d'authentification
-    if (error.response?.status === 401 && 
-        error.config?.url !== '/logout' && 
-        !isHandlingAuthError) {
       
-      isHandlingAuthError = true
-      
-      try {
-        const authStore = useAuthStore()
-        
-        // Vérifier si l'erreur vient de l'endpoint verify-token
-        if (error.config?.url === '/verify-token') {
-          console.log('Token invalide détecté')
-        } else {
-          console.warn('Erreur d\'authentification 401 détectée')
-        }
-        
-        await authStore.logout()
-        
-        // Rediriger vers la page de connexion avec un message
-        window.location.href = '/login?session=expired'
-      } catch (logoutError) {
-        console.error('Erreur lors de la déconnexion:', logoutError)
-        // Forcer la redirection même en cas d'erreur
-        window.location.href = '/login'
-      } finally {
-        isHandlingAuthError = false
-      }
+      return Promise.reject(new ApiError(errorMessage, status))
     }
     
-    // Logguer les erreurs serveur pour debugging
-    if (error.response?.status && error.response.status >= 500) {
-      console.error('Erreur serveur:', error.response.status, error.response.data)
-    }
+    // Autres erreurs non traitées
+    notificationStore.error(
+      'Erreur',
+      errorMessage
+    )
     
-    return Promise.reject(error)
+    return Promise.reject(new ApiError(errorMessage, status))
   }
 )
 
-// Structure API plus claire
+// Méthodes utilitaires génériques avec typage fort
 export const apiService = {
-  // Account routes
-  account: {
-    create: (userData: any) => api.post('/account', userData),
-    getAll: () => api.get('/account'),
-    getOne: (id: string) => api.get(`/account/${id}`),
-    update: (id: string, data: any) => api.patch(`/account/${id}`, data),
-    delete: (id: string) => api.delete(`/account/${id}`),
-    verifyToken: () => api.get('/verify-token')
+  get: async <T>(url: string, params?: unknown): Promise<T> => {
+    const response = await api.get<ApiSuccessResponse<T>>(url, { params })
+    return (response as unknown as ApiSuccessResponse<T>).data
   },
-
-  // Auth routes avec typages
-  auth: {
-    login: (credentials: { email: string; password: string }) => 
-      api.post('/login', credentials),
-    logout: () => api.post('/logout'),
-    signup: (userData: any) => api.post('/signup', userData),
-    forgotPassword: (email: string) => api.post('/forgot-password', { email })
+  
+  post: async <T>(url: string, data?: unknown): Promise<T> => {
+    const response = await api.post<ApiSuccessResponse<T>>(url, data)
+    return (response as unknown as ApiSuccessResponse<T>).data
   },
-
-  // Dietary restrictions routes
-  dietaryRestrictions: {
-    getAll: () => api.get('/dietary-restrictions'),
-    create: (data: any) => api.post('/dietary-restrictions', data),
-    update: (type: string, data: any) => api.put(`/dietary-restrictions/${type}`, data),
-    delete: (type: string) => api.delete(`/dietary-restrictions/${type}`),
-    deleteAll: () => api.delete('/dietary-restrictions')
+  
+  put: async <T>(url: string, data?: unknown): Promise<T> => {
+    const response = await api.put<ApiSuccessResponse<T>>(url, data)
+    return (response as unknown as ApiSuccessResponse<T>).data
   },
-
-  // Favorites routes
-  favorites: {
-    getAll: () => api.get('/favorites'),
-    checkFavorite: (recipeId: number) => api.get(`/favorites/${recipeId}/check`),
-    create: (data: any) => api.post('/favorites', data),
-    delete: (recipeId: number) => api.delete(`/favorites/${recipeId}`)
+  
+  patch: async <T>(url: string, data?: unknown): Promise<T> => {
+    const cleanUrl = url.startsWith('/api/v1') ? url.replace('/api/v1', '') : url;
+    
+    const response = await api.patch<ApiSuccessResponse<T>>(cleanUrl, data)
+    return (response as unknown as ApiSuccessResponse<T>).data
   },
-
-  // Menu routes
-  menus: {
-    getAll: () => api.get('/weekly-menus'),
-    getById: (id: number) => api.get(`/weekly-menus/${id}`),
-    create: (data: any) => api.post('/weekly-menus', data),
-    generateMenu: (params: any) => api.post('/weekly-menus/generate', params),
-    update: (id: number, data: any) => api.put(`/weekly-menus/${id}`, data),
-    delete: (id: number) => api.delete(`/weekly-menus/${id}`)
-  },
-
-  // Payment routes
-  payment: {
-    createSubscription: (data: any) => api.post('/subscription', data),
-    cancelSubscription: () => api.post('/subscription/cancel'),
-    getPaymentHistory: () => api.get('/payment-history'),
-    getAllPayments: () => api.get('/admin/payments') // Route admin
-  },
-
-  // Recipe routes
-  recipes: {
-    getAll: () => api.get('/recipes'),
-    getByType: (type: string) => api.get(`/recipes/type/${type}`),
-    getOne: (id: number) => api.get(`/recipes/${id}`),
-    getIngredients: (id: number) => api.get(`/recipes/${id}/ingredients`),
-    getSuggestions: () => api.get('/recipes/suggestions'),
-    create: (data: any) => api.post('/recipes', data),
-    update: (id: number, data: any) => api.patch(`/recipes/${id}`, data),
-    delete: (id: number) => api.delete(`/recipes/${id}`),
-    addIngredient: (id: number, data: any) => api.post(`/recipes/${id}/ingredients`, data),
-    deleteIngredient: (id: number, ingredientId: number) => api.delete(`/recipes/${id}/ingredients/${ingredientId}`),
-    deleteAllIngredients: (id: number) => api.delete(`/recipes/${id}/ingredients`)
-  },
-
-  // Recipe reviews routes
-  reviews: {
-    getAllByRecipe: (recipeId: number) => api.get(`/recipes/${recipeId}/reviews`),
-    getStats: (recipeId: number) => api.get(`/recipes/${recipeId}/reviews/stats`),
-    getAllByUser: () => api.get('/my/reviews'),
-    create: (recipeId: number, data: any) => api.post(`/recipes/${recipeId}/reviews`, data),
-    update: (recipeId: number, data: any) => api.put(`/recipes/${recipeId}/reviews`, data),
-    delete: (recipeId: number) => api.delete(`/recipes/${recipeId}/reviews`)
-  },
-
-  // Seasonal items routes
-  seasonal: {
-    getAll: () => api.get('/seasonal-items'),
-    getById: (id: number) => api.get(`/seasonal-items/${id}`),
-    getByType: (type: string) => api.get(`/seasonal-items/type/${type}`),
-    create: (data: any) => api.post('/seasonal-items', data),
-    update: (id: number, data: any) => api.put(`/seasonal-items/${id}`, data),
-    delete: (id: number) => api.delete(`/seasonal-items/${id}`)
+  
+  delete: async <T>(url: string): Promise<T> => {
+    const response = await api.delete<ApiSuccessResponse<T>>(url)
+    return (response as unknown as ApiSuccessResponse<T>).data
   }
-};
+}
 
-export default api;
+export default api

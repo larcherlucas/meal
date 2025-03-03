@@ -1,171 +1,342 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
-import axios from 'axios'
+import RecipeModal from '@/components/recipe/RecipeModal.vue'
+import { HeartIcon } from '@heroicons/vue/24/outline'
+import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
 
 const authStore = useAuthStore()
-const router = useRouter()
 
-const generationType = ref('week') // 'week' or 'month'
-const preferences = ref({
-  excludeIngredients: [],
-  dietaryRestrictions: [],
-  mealTypes: {
-    breakfast: true,
-    lunch: true,
-    dinner: true
+interface NutritionalInfo {
+  calories: string
+  proteins: string
+  carbs: string
+  fats: string
+  saturatedFats?: string
+  fiber?: string
+  sodium?: string
+}
+
+interface Recipe {
+  id: number
+  title: string
+  image: string
+  category: string
+  difficulty: string
+  prepTime: string
+  totalTime: string
+  servings: number
+  ingredients: {
+    category: string
+    items: {
+      name: string
+      quantity: number
+      unit: string
+    }[]
+  }[]
+  nutritionalInfo: NutritionalInfo
+  steps: {
+    category?: string
+    instructions: string[]
+  }[]
+  premium: boolean
+}
+
+const recipes = ref<Recipe[]>([
+  {
+    id: 1,
+    title: 'Cuisses de dinde à la moutarde, riz basmati aux champignons',
+    image: '/images/dinde-moutarde.jpg',
+    category: 'Plat principal',
+    difficulty: 'Facile',
+    prepTime: '10 min',
+    totalTime: '1h 15 min',
+    servings: 4,
+    premium: false,
+    ingredients: [
+      {
+        category: 'Cuisses de dinde à la moutarde',
+        items: [
+          { name: 'Oignon', quantity: 100, unit: 'g' },
+          { name: 'Gousse d\'ail', quantity: 1, unit: 'pièce' },
+          { name: 'Moutarde à l\'ancienne', quantity: 2, unit: 'c. à soupe' },
+          { name: 'Moutarde forte', quantity: 1, unit: 'c. à café' },
+          { name: 'Huile d\'olive', quantity: 60, unit: 'g' },
+          { name: 'Sauce de soja', quantity: 3, unit: 'c. à soupe' },
+          { name: 'Cuisses de dinde', quantity: 2, unit: 'pièces' }
+        ]
+      },
+      {
+        category: 'Riz aux champignons',
+        items: [
+          { name: 'Gousse d\'ail', quantity: 1, unit: 'pièce' },
+          { name: 'Riz basmati', quantity: 200, unit: 'g' },
+          { name: 'Eau', quantity: 1000, unit: 'g' },
+          { name: 'Gros sel', quantity: 1, unit: 'c. à café' },
+          { name: 'Champignons de Paris frais', quantity: 600, unit: 'g' },
+          { name: 'Crème fraîche', quantity: 1, unit: 'c. à soupe' }
+        ]
+      }
+    ],
+    nutritionalInfo: {
+      calories: '749 kcal',
+      proteins: '30.8 g',
+      carbs: '96.8 g',
+      fats: '25.8 g',
+      saturatedFats: '4.5 g',
+      fiber: '6.3 g',
+      sodium: '1940.8 mg'
+    },
+    steps: [
+      {
+        category: 'Cuisses de dinde à la moutarde',
+        instructions: [
+          'Préchauffer le four à 180 °C (Th. 6).',
+          'Mettre l\'oignon et l\'ail dans le bol, hacher 5 sec/vitesse 5 et racler les parois.',
+          'Ajouter la moutarde à l\'ancienne, la moutarde forte, l\'huile d\'olive et la sauce de soja, mélanger 10 sec/vitesse 2.',
+          'Badigeonner les cuisses de dinde avec cette préparation, les disposer dans un plat et cuire 28 min à 180 °C.'
+        ]
+      },
+      {
+        category: 'Riz aux champignons',
+        instructions: [
+          'Hacher l\'ail 3 sec/vitesse 5, réserver.',
+          'Mettre le riz dans le panier cuisson, le rincer sous un filet d\'eau froide.',
+          'Dans le bol, ajouter l\'eau et le sel, réinsérer le panier et cuire avec le Varoma contenant les champignons et l\'ail pendant 20 min (Varoma/vitesse 1).',
+          'Égoutter le riz et mélanger les champignons avec la crème fraîche. Servir les cuisses accompagnées du riz et des champignons.'
+        ]
+      }
+    ]
+  },
+  {
+    id: 2,
+    title: 'Risotto aux épinards et crème au safran',
+    image: '/images/risotto-epinards.jpg',
+    category: 'Plat principal',
+    difficulty: 'Facile',
+    prepTime: '10 min',
+    totalTime: '40 min',
+    servings: 8,
+    premium: true,
+    ingredients: [
+      {
+        category: 'Crème au safran',
+        items: [
+          { name: 'Crème fraîche épaisse', quantity: 200, unit: 'g' },
+          { name: 'Safran', quantity: 2, unit: 'doses' },
+          { name: 'Sel', quantity: 2, unit: 'pincées' }
+        ]
+      },
+      {
+        category: 'Risotto aux épinards',
+        items: [
+          { name: 'Oignon', quantity: 90, unit: 'g' },
+          { name: 'Huile d\'olive', quantity: 20, unit: 'g' },
+          { name: 'Riz spécial risotto', quantity: 400, unit: 'g' },
+          { name: 'Épinards frais', quantity: 200, unit: 'g' },
+          { name: 'Eau', quantity: 850, unit: 'g' },
+          { name: 'Sel', quantity: 2, unit: 'pincées' }
+        ]
+      }
+    ],
+    nutritionalInfo: {
+      calories: '515 kcal',
+      proteins: '18 g',
+      carbs: '29 g',
+      fats: '36 g'
+    },
+    steps: [
+      {
+        category: 'Crème au safran',
+        instructions: [
+          'Mettre la crème, le safran et le sel dans le bol, chauffer 5 min/Varoma/vitesse 1, puis réserver dans une saucière.'
+        ]
+      },
+      {
+        category: 'Risotto aux épinards',
+        instructions: [
+          'Hacher l\'oignon 6 sec/vitesse 5 et racler les parois.',
+          'Ajouter l\'huile d\'olive et rissoler 5 min/Varoma/vitesse sans le gobelet doseur.',
+          'Ajouter le riz et les épinards, cuire 3 min à 100°C/vitesse 1.',
+          'Ajouter l\'eau et le sel, mettre le Varoma et cuire 22 min à 100°C/vitesse adaptée.',
+          'Mouler le risotto en portions (exemple : emporte-pièce de 10 cm), napper de crème au safran et servir chaud.'
+        ]
+      }
+    ]
+  },
+  {
+    id: 3,
+    title: 'Pâte à pancakes',
+    image: '/images/pancakes.jpg',
+    category: 'Dessert',
+    difficulty: 'Facile',
+    prepTime: '20 min',
+    totalTime: '30 min',
+    servings: 12,
+    premium: false,
+    ingredients: [
+      {
+        category: 'Ingrédients',
+        items: [
+          { name: 'Beurre doux', quantity: 50, unit: 'g' },
+          { name: 'Lait', quantity: 300, unit: 'g' },
+          { name: 'Œufs', quantity: 2, unit: 'pièces' },
+          { name: 'Sucre en poudre', quantity: 30, unit: 'g' },
+          { name: 'Farine de blé', quantity: 200, unit: 'g' },
+          { name: 'Levure chimique', quantity: 10, unit: 'g' },
+          { name: 'Sel', quantity: 0.5, unit: 'c. à café' }
+        ]
+      }
+    ],
+    nutritionalInfo: {
+      calories: '131 kcal',
+      proteins: '4 g',
+      carbs: '16 g',
+      fats: '6 g',
+      fiber: '0.5 g'
+    },
+    steps: [
+      {
+        instructions: [
+          'Faire fondre le beurre dans le bol 2 min à 70°C/vitesse 1.',
+          'Ajouter le lait, les œufs, le sucre, la farine, la levure et le sel, mixer 10 sec/vitesse 5.',
+          'Pour chaque pancake, verser une louche de pâte dans une poêle préalablement graissée, cuire 1-2 min jusqu\'à formation de bulles, retourner et cuire 1 min de plus. Répéter et servir chaud.'
+        ]
+      }
+    ]
   }
+])
+
+const categories = ['Toutes', 'Entrée', 'Plat principal', 'Dessert']
+const selectedCategory = ref('Toutes')
+const selectedRecipe = ref<Recipe | null>(null)
+const isModalOpen = ref(false)
+const favorites = ref<Set<number>>(new Set())
+
+const filteredRecipes = computed(() => {
+  let filtered = recipes.value
+  if (selectedCategory.value !== 'Toutes') {
+    filtered = filtered.filter(recipe => recipe.category === selectedCategory.value)
+  }
+  if (!authStore.hasActiveSubscription) {
+    filtered = filtered.filter(recipe => !recipe.premium)
+  }
+  return filtered
 })
 
-const isGenerating = ref(false)
-const generatedMenu = ref(null)
-const errorMessage = ref('')
-
-const handleGenerate = async () => {
-  if (!authStore.hasActiveSubscription) {
-    router.push('/subscription')
-    return
+const toggleFavorite = (recipeId: number, event: Event) => {
+  event.stopPropagation()
+  if (favorites.value.has(recipeId)) {
+    favorites.value.delete(recipeId)
+  } else {
+    favorites.value.add(recipeId)
   }
+}
 
-  isGenerating.value = true
-  errorMessage.value = '' // Réinitialiser le message d'erreur
-  try {
-    // Appel API pour générer le menu
-    const response = await axios.post('/api/menu/generate', {
-      type: generationType.value,
-      preferences: preferences.value
-    })
-    generatedMenu.value = response.data
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      // Gérer les erreurs Axios
-      if (error.response) {
-        // Erreur avec une réponse du serveur
-        switch (error.response.status) {
-          case 404:
-            errorMessage.value = 'Service de génération de menu non trouvé. Veuillez réessayer plus tard.'
-            break
-          case 500:
-            errorMessage.value = 'Erreur serveur. Veuillez réessayer plus tard.'
-            break
-          default:
-            errorMessage.value = `Erreur: ${error.response.statusText}`
-        }
-      } else if (error.request) {
-        // Erreur sans réponse du serveur
-        errorMessage.value = 'Aucune réponse du serveur. Veuillez vérifier votre connexion.'
-      } else {
-        // Erreur lors de la configuration de la requête
-        errorMessage.value = `Erreur lors de la configuration de la requête: ${error.message}`
-      }
-    } else {
-      // Gérer d'autres types d'erreurs
-      errorMessage.value = 'Une erreur inattendue s\'est produite. Veuillez réessayer.'
-    }
-    console.error('Erreur lors de la génération du menu:', error)
-  } finally {
-    isGenerating.value = false
-  }
+const openRecipeModal = (recipe: Recipe) => {
+  selectedRecipe.value = recipe
+  isModalOpen.value = true
 }
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto space-y-6">
-    <!-- Options de génération -->
+  <div class="space-y-6">
+    <!-- Filtres -->
     <div class="bento-card">
-      <h2 class="text-2xl font-bold mb-6">Générateur de menus</h2>
-
-      <div class="space-y-6">
-        <!-- Type de génération -->
-        <div>
-          <label class="block text-sm font-medium mb-2">Période</label>
-          <div class="flex space-x-4">
-            <button
-              @click="generationType = 'week'"
-              class="px-4 py-2 rounded-lg transition-colors"
-              :class="generationType === 'week' ?
-                'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-100' :
-                'hover:bg-gray-100 dark:hover:bg-gray-700'"
-            >
-              Semaine
-            </button>
-            <button
-              @click="generationType = 'month'"
-              class="px-4 py-2 rounded-lg transition-colors"
-              :class="generationType === 'month' ?
-                'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-100' :
-                'hover:bg-gray-100 dark:hover:bg-gray-700'"
-            >
-              Mois
-            </button>
-          </div>
-        </div>
-
-        <!-- Repas à inclure -->
-        <div>
-          <label class="block text-sm font-medium mb-2">Repas à inclure</label>
-          <div class="flex space-x-4">
-            <label class="flex items-center">
-              <input
-                type="checkbox"
-                v-model="preferences.mealTypes.breakfast"
-                class="rounded text-primary-600 focus:ring-primary-500"
-              />
-              <span class="ml-2">Petit-déjeuner</span>
-            </label>
-            <label class="flex items-center">
-              <input
-                type="checkbox"
-                v-model="preferences.mealTypes.lunch"
-                class="rounded text-primary-600 focus:ring-primary-500"
-              />
-              <span class="ml-2">Déjeuner</span>
-            </label>
-            <label class="flex items-center">
-              <input
-                type="checkbox"
-                v-model="preferences.mealTypes.dinner"
-                class="rounded text-primary-600 focus:ring-primary-500"
-              />
-              <span class="ml-2">Dîner</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Bouton de génération -->
+      <div class="flex space-x-4">
         <button
-          @click="handleGenerate"
-          :disabled="isGenerating"
-          class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+          v-for="category in categories"
+          :key="category"
+          @click="selectedCategory = category"
+          class="px-4 py-2 rounded-lg transition-colors"
+          :class="selectedCategory === category ? 
+            'bg-mocha-100 text-mocha-700 dark:bg-mocha-900 dark:text-mocha-100' : 
+            'hover:bg-gray-100 dark:hover:bg-gray-700'"
         >
-          <template v-if="isGenerating">
-            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Génération en cours...
-          </template>
-          <template v-else>
-            Générer le menu
-          </template>
+          {{ category }}
         </button>
-
-        <!-- Message d'erreur -->
-        <p v-if="errorMessage" class="text-red-600 text-sm mt-4">{{ errorMessage }}</p>
       </div>
     </div>
 
-    <!-- Menu généré -->
-    <div v-if="generatedMenu" class="bento-card">
-      <h3 class="text-xl font-semibold mb-4">Menu généré</h3>
-      <div v-for="(day, index) in generatedMenu" :key="index" class="mb-4">
-        <h4 class="text-lg font-medium mb-2">{{ day.date }}</h4>
-        <div v-for="meal in day.meals" :key="meal.type" class="mb-2">
-          <h5 class="font-semibold">{{ meal.type }}</h5>
-          <p>{{ meal.recipe }}</p>
+    <!-- Liste des recettes -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div
+        v-for="recipe in filteredRecipes"
+        :key="recipe.id"
+        class="bento-card group hover:shadow-xl transition-shadow cursor-pointer relative"
+        @click="openRecipeModal(recipe)"
+      >
+        <div class="relative aspect-video rounded-lg overflow-hidden mb-4">
+          <img
+            :src="recipe.image"
+            :alt="recipe.title"
+            class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+          />
+          <div
+            v-if="recipe.premium && !authStore.hasActiveSubscription"
+            class="absolute inset-0 bg-black/50 flex items-center justify-center"
+          >
+            <router-link
+              to="/subscription"
+              class="px-4 py-2 bg-mocha-600 text-white rounded-lg hover:bg-mocha-700 transition-colors"
+              @click.stop
+            >
+              Débloquer
+            </router-link>
+          </div>
+          <!-- Bouton favori -->
+          <button
+            @click="toggleFavorite(recipe.id, $event)"
+            class="absolute top-2 right-2 p-2 rounded-full bg-white/80 hover:bg-white transition-colors"
+          >
+            <HeartSolidIcon
+              v-if="favorites.has(recipe.id)"
+              class="h-6 w-6 text-red-500"
+            />
+            <HeartIcon
+              v-else
+              class="h-6 w-6 text-gray-500"
+            />
+          </button>
+        </div>
+
+        <div class="p-4">
+          <h3 class="text-lg font-semibold mb-2 line-clamp-2">{{ recipe.title }}</h3>
+          
+          <div class="flex items-center text-sm font-semibold space-x-4" style="color: rgba(217, 121, 4, 1);">
+            <span>{{ recipe.difficulty }}</span>
+            <span>{{ recipe.totalTime }}</span>
+            <span>{{ recipe.category }}</span>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Modal de recette -->
+    <RecipeModal
+      :is-open="isModalOpen"
+      :recipe="selectedRecipe"
+      @close="isModalOpen = false"
+    />
+
+    <!-- CTA Abonnement -->
+    <div
+      v-if="!authStore.hasActiveSubscription"
+      class="bento-card bg-gradient-to-r text-white text-center"
+      style="background-color: rgba(86, 122, 94, 1);"
+    >
+      <h2 class="text-2xl font-bold mb-4"
+      style="color: #fff;">Débloquez toutes les recettes !</h2>
+      <p class="mb-6"
+      style="color: #fff;"
+      >Accédez à notre collection complète de recettes et au générateur de menus.</p>
+      <router-link
+        to="/subscription"
+        class="inline-block px-6 py-3 bg-white text-mocha-700 rounded-lg hover:bg-mocha-50 transition-colors"
+      >
+        Voir les abonnements
+      </router-link>
+    </div>
+
   </div>
 </template>

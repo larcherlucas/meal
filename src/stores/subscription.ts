@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { apiService } from '../api/config'
+import { apiService } from '@/api/config'
+import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/NotificationStore'
 
 export interface SubscriptionPlan {
   id: string
@@ -13,17 +15,16 @@ export interface SubscriptionPlan {
 }
 
 export const useSubscriptionStore = defineStore('subscription', () => {
+  const authStore = useAuthStore()
+  const notificationStore = useNotificationStore()
+
   const plans = ref<SubscriptionPlan[]>([
     {
       id: 'free',
       name: 'Gratuit',
       price: 0,
       period: 'month',
-      features: [
-        'Accès à 50 recettes',
-        'Générateur de menu basique',
-        'Liste de courses simple'
-      ],
+      features: ['Accès à 50 recettes', 'Générateur de menu basique', 'Liste de courses simple'],
       recipeAccess: 50,
       hasVideoAccess: false
     },
@@ -60,6 +61,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
   ])
 
   const currentPlan = ref<string>('free')
+  const subscriptionStatus = ref<'active' | 'pending' | 'cancelled' | 'expired' | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -67,31 +69,46 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     return plans.value.find(plan => plan.id === currentPlan.value)
   })
 
-  async function fetchCurrentPlan() {
-    try {
-      isLoading.value = true
-      const response = await apiService.payment.getPaymentHistory()
-      const activeSub = response.data.activeSubscription
-      if (activeSub) {
-        currentPlan.value = activeSub.planId
+// Dans subscription.ts
+async function fetchCurrentPlan() {
+  try {
+    isLoading.value = true
+    
+    // Utiliser les données de l'utilisateur au lieu de faire une requête séparée
+    if (authStore.user && authStore.user.subscription) {
+      // Déterminer le plan en fonction du type d'abonnement
+      if (authStore.user.subscription.isActive) {
+        currentPlan.value = authStore.user.subscription.type || 'monthly'; // Par défaut 'monthly' si type est null
+        subscriptionStatus.value = authStore.user.subscription.status;
+      } else {
+        currentPlan.value = 'free';
+        subscriptionStatus.value = authStore.user.subscription.status || 'inactive';
       }
-    } catch (err) {
-      console.error('Failed to fetch subscription:', err)
-      error.value = 'Erreur lors du chargement de l\'abonnement'
-    } finally {
-      isLoading.value = false
+    } else {
+      currentPlan.value = 'free';
+      subscriptionStatus.value = null;
     }
+  } catch (err) {
+    console.error('Failed to process subscription:', err);
+    error.value = "Erreur lors du chargement de l'abonnement";
+  } finally {
+    isLoading.value = false;
   }
+}
 
   async function subscribe(planId: string) {
     try {
       isLoading.value = true
       await apiService.payment.createSubscription({ planId })
       currentPlan.value = planId
+      subscriptionStatus.value = 'active'
+      await authStore.fetchUser()
+      notificationStore.show({ type: 'success', message: 'Abonnement activé avec succès' })
       return true
     } catch (err) {
       console.error('Subscription failed:', err)
-      error.value = 'Erreur lors de la souscription'
+      error.value = "Erreur lors de la souscription"
+      notificationStore.show({ type: 'error', message: "Échec de la souscription" })
       return false
     } finally {
       isLoading.value = false
@@ -103,14 +120,22 @@ export const useSubscriptionStore = defineStore('subscription', () => {
       isLoading.value = true
       await apiService.payment.cancelSubscription()
       currentPlan.value = 'free'
+      subscriptionStatus.value = 'cancelled'
+      await authStore.fetchUser()
+      notificationStore.show({ type: 'success', message: 'Abonnement annulé avec succès' })
       return true
     } catch (err) {
       console.error('Cancellation failed:', err)
-      error.value = 'Erreur lors de l\'annulation'
+      error.value = "Erreur lors de l'annulation"
+      notificationStore.show({ type: 'error', message: "Échec de l'annulation" })
       return false
     } finally {
       isLoading.value = false
     }
+  }
+
+  function clearError() {
+    error.value = null
   }
 
   const canAccessRecipe = (recipeId: number) => {
@@ -122,12 +147,14 @@ export const useSubscriptionStore = defineStore('subscription', () => {
   return {
     plans,
     currentPlan,
+    subscriptionStatus,
     isLoading,
     error,
     getCurrentPlan,
     fetchCurrentPlan,
     subscribe,
     cancelSubscription,
+    clearError,
     canAccessRecipe
   }
 })

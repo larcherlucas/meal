@@ -5,7 +5,6 @@ import { useThemeStore } from './stores/theme'
 import Navigation from './components/Navigation.vue'
 import AuthNotification from './components/auth/AuthNotification.vue'
 
-
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
 
@@ -45,8 +44,8 @@ watch(() => authStore.isAuthenticated, (newValue, oldValue) => {
 // Initialisation de l'application
 onMounted(async () => {
   try {
-    // Utiliser la fonction initialize mise à jour dans votre store
-    await authStore.initialize()
+    // Vérifier le token et rafraîchir les données utilisateur
+    await authStore.verifyToken()
   } catch (error) {
     console.error('Erreur lors de l\'initialisation:', error)
     showNotificationMessage('error', 'Erreur', 'Un problème est survenu lors du chargement de l\'application')

@@ -12,19 +12,21 @@ export interface User {
   id: string;
   email: string;
   username: string;
-  role: 'admin' | 'user';
-  household?: HouseholdComposition;
+  role: 'admin' | 'user' | 'premium';
+  household_members?: HouseholdComposition;
   subscription?: {
+    type: string | null;
     isActive: boolean;
-    plan: string;
-    expiresAt: string;
+    status: 'active' | 'inactive' | 'cancelled' | 'expired' | 'pending';
+    startDate: string | null;
+    endDate: string | null;
   };
 }
 
 export interface HouseholdComposition {
   adults: number;
-  childrenOver3: number;
-  childrenUnder3: number;
+  children_over_3: number;
+  children_under_3: number;
   babies: number;
 }
 

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiService } from '../api/config'
+import { useAuthStore } from './auth' // Ajout de l'import pour la vérification d'authentification
 
 interface ReviewStats {
   averageRating: number
@@ -23,25 +24,31 @@ interface Review {
 }
 
 export const useRecipeReviewsStore = defineStore('recipeReviews', () => {
-  const reviews = ref<Review[]>([])
-  const userReviews = ref<Review[]>([])
+  // États
   const currentRecipeReviews = ref<Review[]>([])
+  const userReviews = ref<Review[]>([])
   const reviewStats = ref<Record<number, ReviewStats>>({})
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  const hasUserReviewed = (recipeId: number) => {
-    return computed(() => 
-      userReviews.value.some(review => review.recipeId === recipeId)
-    )
+  // Propriétés calculées
+  const hasUserReviewed = computed(() => (recipeId: number) => 
+    userReviews.value.some(review => review.recipeId === recipeId)
+  )
+
+  const getUserReviewForRecipe = computed(() => (recipeId: number) => 
+    userReviews.value.find(review => review.recipeId === recipeId)
+  )
+
+  // Vérifier si l'utilisateur est authentifié
+  const checkAuthentication = () => {
+    const authStore = useAuthStore()
+    if (!authStore.isAuthenticated) {
+      throw new Error("Vous devez être connecté pour gérer les avis")
+    }
   }
 
-  const getUserReviewForRecipe = (recipeId: number) => {
-    return computed(() => 
-      userReviews.value.find(review => review.recipeId === recipeId)
-    )
-  }
-
+  // Actions
   async function fetchReviewsByRecipe(recipeId: number) {
     isLoading.value = true
     error.value = null
@@ -84,6 +91,7 @@ export const useRecipeReviewsStore = defineStore('recipeReviews', () => {
     error.value = null
     
     try {
+      checkAuthentication()
       const response = await apiService.get('/my/reviews')
       userReviews.value = response.data
       return response.data
@@ -101,6 +109,7 @@ export const useRecipeReviewsStore = defineStore('recipeReviews', () => {
     error.value = null
     
     try {
+      checkAuthentication()
       const response = await apiService.post(`/recipes/${recipeId}/reviews`, reviewData)
       await fetchUserReviews()
       await fetchReviewsByRecipe(recipeId)
@@ -120,6 +129,7 @@ export const useRecipeReviewsStore = defineStore('recipeReviews', () => {
     error.value = null
     
     try {
+      checkAuthentication()
       const response = await apiService.put(`/recipes/${recipeId}/reviews`, reviewData)
       await fetchUserReviews()
       await fetchReviewsByRecipe(recipeId)
@@ -139,6 +149,7 @@ export const useRecipeReviewsStore = defineStore('recipeReviews', () => {
     error.value = null
     
     try {
+      checkAuthentication()
       await apiService.delete(`/recipes/${recipeId}/reviews`)
       await fetchUserReviews()
       await fetchReviewsByRecipe(recipeId)
@@ -153,20 +164,30 @@ export const useRecipeReviewsStore = defineStore('recipeReviews', () => {
     }
   }
 
+  // Fonction pour réinitialiser les erreurs
+  function clearError() {
+    error.value = null
+  }
+
   return {
-    reviews,
+    // États
     userReviews,
     currentRecipeReviews,
     reviewStats,
     isLoading,
     error,
+    
+    // Propriétés calculées
     hasUserReviewed,
     getUserReviewForRecipe,
+    
+    // Actions
     fetchReviewsByRecipe,
     fetchReviewStats,
     fetchUserReviews,
     createReview,
     updateReview,
-    deleteReview
+    deleteReview,
+    clearError
   }
 })
