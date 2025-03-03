@@ -146,14 +146,22 @@ api.interceptors.response.use(
       return Promise.reject(new ApiError(errorMessage, status))
     }
     
-    // Gestion des erreurs 404 (ressource non trouvée)
-    if (status === 404) {
-      notificationStore.error(
-        'Ressource introuvable',
-        errorMessage
-      )
-      return Promise.reject(new ApiError(errorMessage, status))
-    }
+// Gestion des erreurs 404 (ressource non trouvée)
+if (status === 404) {
+  // Vérifier si c'est un cas où on ne veut pas afficher de notification
+  // Par exemple, l'absence de menu actif
+  const url = originalRequest.url || '';
+  const skipNotification = url.includes('/active-weekly-menu');
+  
+  if (!skipNotification) {
+    notificationStore.error(
+      'Ressource introuvable',
+      errorMessage
+    );
+  }
+  
+  return Promise.reject(new ApiError(errorMessage, status));
+}
     
     // Gestion des erreurs 409 (conflit)
     if (status === 409) {
@@ -228,7 +236,45 @@ export const apiService = {
     const response = await api.get<ApiSuccessResponse<T>>(url, { params })
     return (response as unknown as ApiSuccessResponse<T>).data
   },
-  
+  // Ajout d'un namespace pour les opérations liées aux menus
+  menus: {
+    getAll: async () => {
+      return apiService.get<{ data: Menu[] }>('/weekly-menus')
+    },
+    
+    getById: async (id: number) => {
+      return apiService.get<{ data: Menu }>(`/weekly-menus/${id}`)
+    },
+    
+    getActive: async () => {
+      try {
+        return await apiService.get<Menu>('/active-weekly-menu')
+      } catch (error: any) {
+        // Gérer explicitement l'erreur 404 comme un cas normal
+        if (error.status === 404) {
+          console.log('Aucun menu actif disponible')
+          return null
+        }
+        throw error
+      }
+    },
+    
+    create: async (menuData: Partial<Menu>) => {
+      return apiService.post<{ data: Menu }>('/weekly-menus', menuData)
+    },
+    
+    update: async (id: number, menuData: Partial<Menu>) => {
+      return apiService.put<{ data: Menu }>(`/weekly-menus/${id}`, menuData)
+    },
+    
+    delete: async (id: number) => {
+      return apiService.delete<{ success: boolean }>(`/weekly-menus/${id}`)
+    },
+    
+    generateMenu: async (params: GenerateMenuParams) => {
+      return apiService.post<{ data: Menu }>('/weekly-menus/generate', params)
+    }
+  },
   post: async <T>(url: string, data?: unknown): Promise<T> => {
     const response = await api.post<ApiSuccessResponse<T>>(url, data)
     return (response as unknown as ApiSuccessResponse<T>).data

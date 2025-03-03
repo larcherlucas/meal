@@ -180,7 +180,8 @@ import {
   Bars3Icon,
   XMarkIcon,
   UserCircleIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  BookOpenIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
@@ -192,7 +193,8 @@ const isProfileMenuOpen = ref(false)
 
 const navigation = [
   { name: 'Accueil', href: '/', icon: HomeIcon },
-  { name: 'Menu', href: '/menu', icon: CalendarIcon },
+  { name: 'Recettes', href: '/recipes', icon: BookOpenIcon },
+  { name: 'Menu', href: '/menus/current', icon: CalendarIcon, requiresAuth: true },
   { name: 'Générateur', href: '/menu/generator', icon: SparklesIcon, requiresAuth: true, requiresSubscription: true },
   { name: 'Abonnement', href: '/subscription', icon: CreditCardIcon },
 ]

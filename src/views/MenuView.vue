@@ -1,471 +1,342 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { useMenuStore } from '@/stores/menuStore'
-import { useSubscriptionStore } from '@/stores/subscription'
-import { useNotificationStore } from '@/stores/NotificationStore'
-import { useAuthStore } from '@/stores/auth' // Ajout de l'AuthStore
-import { 
-  CheckIcon, 
-  XMarkIcon, 
-  ArrowPathIcon,
-  ExclamationTriangleIcon,
-  InformationCircleIcon
-} from '@heroicons/vue/24/outline'
-import type { GenerateMenuParams } from '@/stores/menuStore'
+import { ref, computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import RecipeModal from '@/components/recipe/RecipeModal.vue'
+import { HeartIcon } from '@heroicons/vue/24/outline'
+import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
 
-// Stores
-const menuStore = useMenuStore()
-const subscriptionStore = useSubscriptionStore()
-const notificationStore = useNotificationStore()
-const authStore = useAuthStore() // Utilisation de l'AuthStore
-const router = useRouter()
+const authStore = useAuthStore()
 
-// États locaux
-const menuType = ref<'week' | 'month'>('week')
-const excludedIngredients = ref<string[]>([])
-const dietaryRestrictions = ref<string[]>([])
-const selectedMealTypes = ref<('breakfast' | 'lunch' | 'dinner' | 'snack')[]>([
-  'breakfast', 'lunch', 'dinner'
+interface NutritionalInfo {
+  calories: string
+  proteins: string
+  carbs: string
+  fats: string
+  saturatedFats?: string
+  fiber?: string
+  sodium?: string
+}
+
+interface Recipe {
+  id: number
+  title: string
+  image: string
+  category: string
+  difficulty: string
+  prepTime: string
+  totalTime: string
+  servings: number
+  ingredients: {
+    category: string
+    items: {
+      name: string
+      quantity: number
+      unit: string
+    }[]
+  }[]
+  nutritionalInfo: NutritionalInfo
+  steps: {
+    category?: string
+    instructions: string[]
+  }[]
+  premium: boolean
+}
+
+const recipes = ref<Recipe[]>([
+  {
+    id: 1,
+    title: 'Cuisses de dinde à la moutarde, riz basmati aux champignons',
+    image: '/images/dinde-moutarde.jpg',
+    category: 'Plat principal',
+    difficulty: 'Facile',
+    prepTime: '10 min',
+    totalTime: '1h 15 min',
+    servings: 4,
+    premium: false,
+    ingredients: [
+      {
+        category: 'Cuisses de dinde à la moutarde',
+        items: [
+          { name: 'Oignon', quantity: 100, unit: 'g' },
+          { name: 'Gousse d\'ail', quantity: 1, unit: 'pièce' },
+          { name: 'Moutarde à l\'ancienne', quantity: 2, unit: 'c. à soupe' },
+          { name: 'Moutarde forte', quantity: 1, unit: 'c. à café' },
+          { name: 'Huile d\'olive', quantity: 60, unit: 'g' },
+          { name: 'Sauce de soja', quantity: 3, unit: 'c. à soupe' },
+          { name: 'Cuisses de dinde', quantity: 2, unit: 'pièces' }
+        ]
+      },
+      {
+        category: 'Riz aux champignons',
+        items: [
+          { name: 'Gousse d\'ail', quantity: 1, unit: 'pièce' },
+          { name: 'Riz basmati', quantity: 200, unit: 'g' },
+          { name: 'Eau', quantity: 1000, unit: 'g' },
+          { name: 'Gros sel', quantity: 1, unit: 'c. à café' },
+          { name: 'Champignons de Paris frais', quantity: 600, unit: 'g' },
+          { name: 'Crème fraîche', quantity: 1, unit: 'c. à soupe' }
+        ]
+      }
+    ],
+    nutritionalInfo: {
+      calories: '749 kcal',
+      proteins: '30.8 g',
+      carbs: '96.8 g',
+      fats: '25.8 g',
+      saturatedFats: '4.5 g',
+      fiber: '6.3 g',
+      sodium: '1940.8 mg'
+    },
+    steps: [
+      {
+        category: 'Cuisses de dinde à la moutarde',
+        instructions: [
+          'Préchauffer le four à 180 °C (Th. 6).',
+          'Mettre l\'oignon et l\'ail dans le bol, hacher 5 sec/vitesse 5 et racler les parois.',
+          'Ajouter la moutarde à l\'ancienne, la moutarde forte, l\'huile d\'olive et la sauce de soja, mélanger 10 sec/vitesse 2.',
+          'Badigeonner les cuisses de dinde avec cette préparation, les disposer dans un plat et cuire 28 min à 180 °C.'
+        ]
+      },
+      {
+        category: 'Riz aux champignons',
+        instructions: [
+          'Hacher l\'ail 3 sec/vitesse 5, réserver.',
+          'Mettre le riz dans le panier cuisson, le rincer sous un filet d\'eau froide.',
+          'Dans le bol, ajouter l\'eau et le sel, réinsérer le panier et cuire avec le Varoma contenant les champignons et l\'ail pendant 20 min (Varoma/vitesse 1).',
+          'Égoutter le riz et mélanger les champignons avec la crème fraîche. Servir les cuisses accompagnées du riz et des champignons.'
+        ]
+      }
+    ]
+  },
+  {
+    id: 2,
+    title: 'Risotto aux épinards et crème au safran',
+    image: '/images/risotto-epinards.jpg',
+    category: 'Plat principal',
+    difficulty: 'Facile',
+    prepTime: '10 min',
+    totalTime: '40 min',
+    servings: 8,
+    premium: true,
+    ingredients: [
+      {
+        category: 'Crème au safran',
+        items: [
+          { name: 'Crème fraîche épaisse', quantity: 200, unit: 'g' },
+          { name: 'Safran', quantity: 2, unit: 'doses' },
+          { name: 'Sel', quantity: 2, unit: 'pincées' }
+        ]
+      },
+      {
+        category: 'Risotto aux épinards',
+        items: [
+          { name: 'Oignon', quantity: 90, unit: 'g' },
+          { name: 'Huile d\'olive', quantity: 20, unit: 'g' },
+          { name: 'Riz spécial risotto', quantity: 400, unit: 'g' },
+          { name: 'Épinards frais', quantity: 200, unit: 'g' },
+          { name: 'Eau', quantity: 850, unit: 'g' },
+          { name: 'Sel', quantity: 2, unit: 'pincées' }
+        ]
+      }
+    ],
+    nutritionalInfo: {
+      calories: '515 kcal',
+      proteins: '18 g',
+      carbs: '29 g',
+      fats: '36 g'
+    },
+    steps: [
+      {
+        category: 'Crème au safran',
+        instructions: [
+          'Mettre la crème, le safran et le sel dans le bol, chauffer 5 min/Varoma/vitesse 1, puis réserver dans une saucière.'
+        ]
+      },
+      {
+        category: 'Risotto aux épinards',
+        instructions: [
+          'Hacher l\'oignon 6 sec/vitesse 5 et racler les parois.',
+          'Ajouter l\'huile d\'olive et rissoler 5 min/Varoma/vitesse sans le gobelet doseur.',
+          'Ajouter le riz et les épinards, cuire 3 min à 100°C/vitesse 1.',
+          'Ajouter l\'eau et le sel, mettre le Varoma et cuire 22 min à 100°C/vitesse adaptée.',
+          'Mouler le risotto en portions (exemple : emporte-pièce de 10 cm), napper de crème au safran et servir chaud.'
+        ]
+      }
+    ]
+  },
+  {
+    id: 3,
+    title: 'Pâte à pancakes',
+    image: '/images/pancakes.jpg',
+    category: 'Dessert',
+    difficulty: 'Facile',
+    prepTime: '20 min',
+    totalTime: '30 min',
+    servings: 12,
+    premium: false,
+    ingredients: [
+      {
+        category: 'Ingrédients',
+        items: [
+          { name: 'Beurre doux', quantity: 50, unit: 'g' },
+          { name: 'Lait', quantity: 300, unit: 'g' },
+          { name: 'Œufs', quantity: 2, unit: 'pièces' },
+          { name: 'Sucre en poudre', quantity: 30, unit: 'g' },
+          { name: 'Farine de blé', quantity: 200, unit: 'g' },
+          { name: 'Levure chimique', quantity: 10, unit: 'g' },
+          { name: 'Sel', quantity: 0.5, unit: 'c. à café' }
+        ]
+      }
+    ],
+    nutritionalInfo: {
+      calories: '131 kcal',
+      proteins: '4 g',
+      carbs: '16 g',
+      fats: '6 g',
+      fiber: '0.5 g'
+    },
+    steps: [
+      {
+        instructions: [
+          'Faire fondre le beurre dans le bol 2 min à 70°C/vitesse 1.',
+          'Ajouter le lait, les œufs, le sucre, la farine, la levure et le sel, mixer 10 sec/vitesse 5.',
+          'Pour chaque pancake, verser une louche de pâte dans une poêle préalablement graissée, cuire 1-2 min jusqu\'à formation de bulles, retourner et cuire 1 min de plus. Répéter et servir chaud.'
+        ]
+      }
+    ]
+  }
 ])
-const servingsCount = ref<number>(4)
-const newIngredient = ref('')
-const formSubmitted = ref(false)
-const isLoading = ref(true) // Ajout d'un état de chargement
 
-// Options pour les restrictions alimentaires
-const availableDietaryRestrictions = [
-  { id: 'vegetarian', label: 'Végétarien' },
-  { id: 'vegan', label: 'Végétalien' },
-  { id: 'gluten-free', label: 'Sans gluten' },
-  { id: 'lactose-free', label: 'Sans lactose' },
-  { id: 'nut-free', label: 'Sans noix' }
-]
+const categories = ['Toutes', 'Entrée', 'Plat principal', 'Dessert']
+const selectedCategory = ref('Toutes')
+const selectedRecipe = ref<Recipe | null>(null)
+const isModalOpen = ref(false)
+const favorites = ref<Set<number>>(new Set())
 
-// Options pour les types de repas
-const mealTypeOptions = [
-  { id: 'breakfast', label: 'Petit-déjeuner' },
-  { id: 'lunch', label: 'Déjeuner' },
-  { id: 'dinner', label: 'Dîner' },
-  { id: 'snack', label: 'Collation' }
-]
-
-// Computed properties
-const isGenerating = computed(() => menuStore.isGenerating)
-
-// Double vérification de l'abonnement actif en utilisant à la fois subscriptionStore et authStore
-const hasSubscription = computed(() => {
-  // Vérification principale via le store d'abonnement
-  const plan = subscriptionStore.getCurrentPlan
-  const hasPlanSubscription = plan && plan.id !== 'free'
-  
-  // Vérification secondaire via l'authStore (comme backup)
-  const hasAuthSubscription = authStore.hasActiveSubscription
-  
-  console.log('Vérification d\'abonnement:', {
-    'Plan d\'abonnement actuel': plan,
-    'Plan non gratuit': hasPlanSubscription,
-    'Auth hasActiveSubscription': hasAuthSubscription
-  })
-  
-  // Retourne true si l'une des vérifications confirme un abonnement actif
-  return hasPlanSubscription || hasAuthSubscription
-})
-
-const menuTypeLabel = computed(() => 
-  menuType.value === 'week' ? 'hebdomadaire' : 'mensuel'
-)
-
-const formIsValid = computed(() => {
-  return selectedMealTypes.value.length > 0 && servingsCount.value > 0
-})
-
-// Méthodes
-function addExcludedIngredient() {
-  if (newIngredient.value.trim() && !excludedIngredients.value.includes(newIngredient.value.trim())) {
-    excludedIngredients.value.push(newIngredient.value.trim())
-    newIngredient.value = ''
+const filteredRecipes = computed(() => {
+  let filtered = recipes.value
+  if (selectedCategory.value !== 'Toutes') {
+    filtered = filtered.filter(recipe => recipe.category === selectedCategory.value)
   }
-}
+  if (!authStore.hasActiveSubscription) {
+    filtered = filtered.filter(recipe => !recipe.premium)
+  }
+  return filtered
+})
 
-function removeExcludedIngredient(ingredient: string) {
-  excludedIngredients.value = excludedIngredients.value.filter(i => i !== ingredient)
-}
-
-function toggleMealType(mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') {
-  if (selectedMealTypes.value.includes(mealType)) {
-    selectedMealTypes.value = selectedMealTypes.value.filter(t => t !== mealType)
+const toggleFavorite = (recipeId: number, event: Event) => {
+  event.stopPropagation()
+  if (favorites.value.has(recipeId)) {
+    favorites.value.delete(recipeId)
   } else {
-    selectedMealTypes.value.push(mealType)
+    favorites.value.add(recipeId)
   }
 }
 
-function toggleDietaryRestriction(restriction: string) {
-  if (dietaryRestrictions.value.includes(restriction)) {
-    dietaryRestrictions.value = dietaryRestrictions.value.filter(r => r !== restriction)
-  } else {
-    dietaryRestrictions.value.push(restriction)
-  }
+const openRecipeModal = (recipe: Recipe) => {
+  selectedRecipe.value = recipe
+  isModalOpen.value = true
 }
-
-// Fonction de débogage pour vérifier l'état de l'abonnement
-function debugSubscriptionStatus() {
-  console.log('--- Débogage Abonnement ---')
-  console.log('Auth Store:', {
-    utilisateur: authStore.user,
-    abonnement: authStore.user?.subscription,
-    statut: authStore.user?.subscription?.status,
-    actif: authStore.user?.subscription?.isActive,
-    hasActiveSubscription: authStore.hasActiveSubscription
-  })
-  
-  console.log('Subscription Store:', {
-    plan: subscriptionStore.getCurrentPlan,
-    hasSubscription: hasSubscription.value
-  })
-  
-  // Tenter une synchronisation explicite
-  if (authStore.user?.subscription) {
-    authStore.syncSubscriptionData()
-    console.log('Après synchronisation:', authStore.user.subscription)
-  }
-  
-  return hasSubscription.value
-}
-
-async function generateMenu() {
-  if (!formIsValid.value) {
-    notificationStore.show({
-      type: 'warning',
-      message: 'Veuillez sélectionner au moins un type de repas'
-    })
-    return
-  }
-
-  // Vérification explicite de l'abonnement
-  const hasValidSubscription = debugSubscriptionStatus()
-  
-  if (!hasValidSubscription) {
-    notificationStore.show({
-      type: 'warning',
-      message: 'La génération de menu nécessite un abonnement actif'
-    })
-    router.push('/subscription?redirect=menu-generator')
-    return
-  }
-
-  formSubmitted.value = true
-
-  const params: GenerateMenuParams = {
-    type: menuType.value,
-    preferences: {
-      excludedIngredients: excludedIngredients.value,
-      dietaryRestrictions: dietaryRestrictions.value,
-      mealTypes: selectedMealTypes.value,
-      servingsCount: servingsCount.value
-    }
-  }
-
-  try {
-    console.log('Génération du menu avec paramètres:', params)
-    const generatedMenu = await menuStore.generateMenu(params)
-    
-    if (generatedMenu) {
-      console.log('Menu généré avec succès:', generatedMenu)
-      // Rediriger vers la vue du menu généré
-      router.push(`/menus/${generatedMenu.id}`)
-    } else {
-      console.warn('Menu généré mais aucun ID retourné')
-    }
-  } catch (error) {
-    console.error('Erreur lors de la génération du menu:', error)
-    notificationStore.show({
-      type: 'error',
-      message: 'Erreur lors de la génération du menu. Veuillez réessayer.'
-    })
-  } finally {
-    formSubmitted.value = false
-  }
-}
-
-// Fonction pour forcer la mise à jour des données d'abonnement
-async function forceRefreshSubscription() {
-  isLoading.value = true
-  try {
-    // 1. Rafraîchir les données utilisateur
-    await authStore.fetchUser()
-    
-    // 2. Rafraîchir explicitement le plan d'abonnement
-    await subscriptionStore.fetchCurrentPlan()
-    
-    // 3. Synchroniser les données d'abonnement dans authStore
-    if (authStore.user?.subscription) {
-      authStore.syncSubscriptionData()
-    }
-    
-    // 4. Vérification du statut après rafraîchissement
-    debugSubscriptionStatus()
-    
-    // Notification à l'utilisateur
-    notificationStore.show({
-      type: 'info',
-      message: 'État d\'abonnement mis à jour',
-      duration: 3000
-    })
-  } catch (error) {
-    console.error('Erreur lors du rafraîchissement des données:', error)
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// Chargement initial et mise en place des watchers
-onMounted(async () => {
-  isLoading.value = true
-  try {
-    // Utiliser Promise.all pour paralléliser les requêtes
-    await Promise.all([
-      authStore.fetchUser(),
-      subscriptionStore.fetchCurrentPlan()
-    ])
-    
-    // Vérification explicite du statut d'abonnement
-    if (authStore.user?.subscription) {
-      authStore.syncSubscriptionData()
-    }
-    
-    // Déboguer l'état initial
-    debugSubscriptionStatus()
-    
-    if (!hasSubscription.value) {
-      notificationStore.show({
-        type: 'info',
-        message: 'Cette fonctionnalité nécessite un abonnement actif',
-        duration: 7000
-      })
-    }
-  } catch (error) {
-    console.error('Erreur lors du chargement initial:', error)
-  } finally {
-    isLoading.value = false
-  }
-})
-
-// Observer les changements dans les stores pour réagir aux mises à jour
-watch(
-  () => [authStore.user?.subscription, subscriptionStore.getCurrentPlan],
-  () => {
-    console.log('Changement détecté dans les données d\'abonnement')
-    debugSubscriptionStatus()
-  }
-)
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- En-tête -->
-    <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-mocha-800 dark:text-mocha-100">
-        Générer un menu {{ menuTypeLabel }}
-      </h1>
-      
-      <!-- Indicateur de chargement -->
-      <div v-if="isLoading" class="flex items-center text-blue-600 dark:text-blue-400">
-        <ArrowPathIcon class="h-5 w-5 mr-2 animate-spin" />
-        <span>Chargement des données...</span>
-      </div>
-      
-      <!-- Indicateur d'abonnement -->
-      <div v-else-if="!hasSubscription" 
-           class="flex items-center px-4 py-2 bg-amber-50 text-amber-700 dark:bg-amber-900 dark:text-amber-100 rounded-lg">
-        <ExclamationTriangleIcon class="h-5 w-5 mr-2" />
-        <span>Fonctionnalité premium</span>
-        <router-link to="/subscription" 
-                    class="ml-3 px-3 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors">
-          S'abonner
-        </router-link>
-      </div>
-      
-      <!-- Bouton de rafraîchissement pour le debug -->
-      <button v-else
-              @click="forceRefreshSubscription"
-              class="flex items-center text-blue-600 dark:text-blue-400 hover:underline">
-        <ArrowPathIcon class="h-5 w-5 mr-1" :class="{'animate-spin': isLoading}" />
-        <span>Rafraîchir l'état</span>
-      </button>
-    </div>
-    
-    <!-- Formulaire de génération -->
+    <!-- Filtres -->
     <div class="bento-card">
-      <form @submit.prevent="generateMenu" class="space-y-6">
-        <!-- Type de menu -->
-        <div>
-          <label class="block mb-2 font-medium">Type de menu</label>
-          <div class="flex space-x-4">
-            <button 
-              type="button"
-              @click="menuType = 'week'"
-              class="px-4 py-2 rounded-lg transition-colors"
-              :class="menuType === 'week' ? 
-                'bg-mocha-100 text-mocha-700 dark:bg-mocha-900 dark:text-mocha-100' : 
-                'hover:bg-gray-100 dark:hover:bg-gray-700'"
-            >
-              Hebdomadaire
-            </button>
-            <button 
-              type="button"
-              @click="menuType = 'month'"
-              class="px-4 py-2 rounded-lg transition-colors"
-              :class="menuType === 'month' ? 
-                'bg-mocha-100 text-mocha-700 dark:bg-mocha-900 dark:text-mocha-100' : 
-                'hover:bg-gray-100 dark:hover:bg-gray-700'"
-            >
-              Mensuel
-            </button>
-          </div>
-        </div>
-        
-        <!-- Types de repas -->
-        <div>
-          <label class="block mb-2 font-medium">Types de repas à inclure</label>
-          <div class="flex flex-wrap gap-3">
-            <button 
-              v-for="type in mealTypeOptions" 
-              :key="type.id"
-              type="button"
-              @click="toggleMealType(type.id as any)"
-              class="px-4 py-2 rounded-lg transition-colors flex items-center"
-              :class="selectedMealTypes.includes(type.id as any) ? 
-                'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-100' : 
-                'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'"
-            >
-              <CheckIcon v-if="selectedMealTypes.includes(type.id as any)" class="h-5 w-5 mr-2" />
-              {{ type.label }}
-            </button>
-          </div>
-          <p v-if="selectedMealTypes.length === 0 && formSubmitted" class="text-red-500 mt-1">
-            Veuillez sélectionner au moins un type de repas
-          </p>
-        </div>
-        
-        <!-- ... autres sections de formulaire inchangées ... -->
-        
-        <!-- Nombre de portions -->
-        <div>
-          <label for="servings" class="block mb-2 font-medium">Nombre de portions</label>
-          <input 
-            id="servings"
-            v-model="servingsCount"
-            type="number"
-            min="1"
-            max="12"
-            class="px-4 py-2 border rounded-lg w-full max-w-xs"
+      <div class="flex space-x-4">
+        <button
+          v-for="category in categories"
+          :key="category"
+          @click="selectedCategory = category"
+          class="px-4 py-2 rounded-lg transition-colors"
+          :class="selectedCategory === category ? 
+            'bg-mocha-100 text-mocha-700 dark:bg-mocha-900 dark:text-mocha-100' : 
+            'hover:bg-gray-100 dark:hover:bg-gray-700'"
+        >
+          {{ category }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Liste des recettes -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div
+        v-for="recipe in filteredRecipes"
+        :key="recipe.id"
+        class="bento-card group hover:shadow-xl transition-shadow cursor-pointer relative"
+        @click="openRecipeModal(recipe)"
+      >
+        <div class="relative aspect-video rounded-lg overflow-hidden mb-4">
+          <img
+            :src="recipe.image"
+            :alt="recipe.title"
+            class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
           />
-        </div>
-        
-        <!-- Restrictions alimentaires -->
-        <div>
-          <label class="block mb-2 font-medium">Restrictions alimentaires</label>
-          <div class="flex flex-wrap gap-3">
-            <button 
-              v-for="restriction in availableDietaryRestrictions" 
-              :key="restriction.id"
-              type="button"
-              @click="toggleDietaryRestriction(restriction.id)"
-              class="px-4 py-2 rounded-lg transition-colors flex items-center"
-              :class="dietaryRestrictions.includes(restriction.id) ? 
-                'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-100' : 
-                'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'"
-            >
-              <CheckIcon v-if="dietaryRestrictions.includes(restriction.id)" class="h-5 w-5 mr-2" />
-              {{ restriction.label }}
-            </button>
-          </div>
-        </div>
-        
-        <!-- Ingrédients exclus -->
-        <div>
-          <label class="block mb-2 font-medium">Ingrédients à exclure</label>
-          <div class="flex mb-2">
-            <input 
-              v-model="newIngredient"
-              type="text"
-              placeholder="Ex: champignons"
-              class="px-4 py-2 border rounded-l-lg flex-grow"
-              @keyup.enter="addExcludedIngredient"
-            />
-            <button 
-              type="button"
-              @click="addExcludedIngredient"
-              class="px-4 py-2 bg-mocha-600 text-white rounded-r-lg hover:bg-mocha-700 transition-colors"
-            >
-              Ajouter
-            </button>
-          </div>
-          
-          <!-- Liste des ingrédients exclus -->
-          <div v-if="excludedIngredients.length > 0" class="flex flex-wrap gap-2 mt-3">
-            <div 
-              v-for="ingredient in excludedIngredients" 
-              :key="ingredient"
-              class="px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center"
-            >
-              <span>{{ ingredient }}</span>
-              <button 
-                type="button" 
-                @click="removeExcludedIngredient(ingredient)"
-                class="ml-2 text-gray-500 hover:text-red-500"
-              >
-                <XMarkIcon class="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Message informatif -->
-        <div v-if="hasSubscription" class="flex items-start p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-          <InformationCircleIcon class="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 mr-2 flex-shrink-0" />
-          <p class="text-sm text-blue-700 dark:text-blue-300">
-            Notre algorithme va générer un menu {{ menuTypeLabel }} personnalisé selon vos préférences. 
-            Vous pourrez ensuite modifier ce menu selon vos envies.
-          </p>
-        </div>
-        
-        <!-- Bouton de génération avec mise à jour du comportement -->
-        <div>
-          <button 
-            type="submit"
-            :disabled="isGenerating || !hasSubscription || isLoading"
-            class="px-6 py-3 bg-mocha-600 text-white rounded-lg hover:bg-mocha-700 transition-colors flex items-center justify-center"
-            :class="{'opacity-50 cursor-not-allowed': isGenerating || !hasSubscription || isLoading}"
+          <div
+            v-if="recipe.premium && !authStore.hasActiveSubscription"
+            class="absolute inset-0 bg-black/50 flex items-center justify-center"
           >
-            <ArrowPathIcon v-if="isGenerating || isLoading" class="h-5 w-5 mr-2 animate-spin" />
-            <span v-if="isGenerating">Génération en cours...</span>
-            <span v-else-if="isLoading">Chargement...</span>
-            <span v-else>Générer mon menu {{ menuTypeLabel }}</span>
+            <router-link
+              to="/subscription"
+              class="px-4 py-2 bg-mocha-600 text-white rounded-lg hover:bg-mocha-700 transition-colors"
+              @click.stop
+            >
+              Débloquer
+            </router-link>
+          </div>
+          <!-- Bouton favori -->
+          <button
+            @click="toggleFavorite(recipe.id, $event)"
+            class="absolute top-2 right-2 p-2 rounded-full bg-white/80 hover:bg-white transition-colors"
+          >
+            <HeartSolidIcon
+              v-if="favorites.has(recipe.id)"
+              class="h-6 w-6 text-red-500"
+            />
+            <HeartIcon
+              v-else
+              class="h-6 w-6 text-gray-500"
+            />
           </button>
         </div>
 
-        <!-- Message d'abonnement -->
-        <div v-if="!hasSubscription && !isLoading" class="flex items-start p-4 bg-amber-50 dark:bg-amber-900/30 rounded-lg">
-          <ExclamationTriangleIcon class="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 mr-2 flex-shrink-0" />
-          <div class="text-sm text-amber-700 dark:text-amber-300">
-            <p class="font-medium">Fonctionnalité premium</p>
-            <p class="mt-1">
-              La génération automatique de menus nécessite un abonnement actif.
-              <router-link to="/subscription" class="underline font-medium">
-                Découvrir les avantages
-              </router-link>
-            </p>
+        <div class="p-4">
+          <h3 class="text-lg font-semibold mb-2 line-clamp-2">{{ recipe.title }}</h3>
+          
+          <div class="flex items-center text-sm font-semibold space-x-4" style="color: rgba(217, 121, 4, 1);">
+            <span>{{ recipe.difficulty }}</span>
+            <span>{{ recipe.totalTime }}</span>
+            <span>{{ recipe.category }}</span>
           </div>
         </div>
-        
-        <div v-if="hasSubscription && import.meta.env.DEV" class="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-mono overflow-auto max-h-40">
-          <p class="font-bold">Informations de débogage :</p>
-          <pre>{{ authStore.user?.subscription ? JSON.stringify(authStore.user.subscription, null, 2) : 'Aucune donnée d\'abonnement' }}</pre>
-          <pre>{{ subscriptionStore.getCurrentPlan ? JSON.stringify(subscriptionStore.getCurrentPlan, null, 2) : 'Aucun plan actif' }}</pre>
-        </div>
-      </form>
+      </div>
     </div>
+
+    <!-- Modal de recette -->
+    <RecipeModal
+      :is-open="isModalOpen"
+      :recipe="selectedRecipe"
+      @close="isModalOpen = false"
+    />
+
+    <!-- CTA Abonnement -->
+    <div
+      v-if="!authStore.hasActiveSubscription"
+      class="bento-card bg-gradient-to-r text-white text-center"
+      style="background-color: rgba(86, 122, 94, 1);"
+    >
+      <h2 class="text-2xl font-bold mb-4"
+      style="color: #fff;">Débloquez toutes les recettes !</h2>
+      <p class="mb-6"
+      style="color: #fff;"
+      >Accédez à notre collection complète de recettes et au générateur de menus.</p>
+      <router-link
+        to="/subscription"
+        class="inline-block px-6 py-3 bg-white text-mocha-700 rounded-lg hover:bg-mocha-50 transition-colors"
+      >
+        Voir les abonnements
+      </router-link>
+    </div>
+
   </div>
 </template>

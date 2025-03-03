@@ -34,6 +34,10 @@ const checkAuth = async (
 
   // Vérifier si la route nécessite un abonnement actif
   if (to.meta.requiresSubscription && !authStore.hasActiveSubscription) {
+    notificationStore.show({
+      type: 'warning',
+      message: 'Cette fonctionnalité nécessite un abonnement actif.'
+    })
     return next({ path: '/subscription' })
   }
 
@@ -112,6 +116,15 @@ const router = createRouter({
       path: '/menu/generator',
       name: 'menu-generator',
       component: () => import('@/views/MenuGeneratorView.vue'),
+      meta: { 
+        requiresAuth: true,
+        requiresSubscription: true 
+      }
+    },
+    {
+      path: '/menus/:id',
+      name: 'weekly-menu-calendar',
+      component: () => import('@/views/WeeklyMenuCalendar.vue'),
       meta: { 
         requiresAuth: true,
         requiresSubscription: true 

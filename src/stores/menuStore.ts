@@ -22,6 +22,7 @@ export interface Menu {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  servingsCount?: number
 }
 
 export interface GenerateMenuParams {
@@ -55,7 +56,17 @@ export const useMenuStore = defineStore('menu', () => {
   const canAccessPremiumFeatures = computed(() => {
     return authStore.hasActiveSubscription
   })
-
+  
+  // Ajoutez cette méthode de débogage
+  function debugStoreState() {
+    console.log('Store state:', {
+      activeMenu: activeMenu.value,
+      menus: menus.value,
+      isLoading: isLoading.value,
+      error: error.value
+    })
+  }
+  
   async function fetchMenus() {
     if (isLoading.value) return
     
@@ -118,33 +129,40 @@ export const useMenuStore = defineStore('menu', () => {
   }
 
   async function fetchActiveMenu() {
-    if (isLoading.value) return
-    
+    console.log('Début de fetchActiveMenu')
+    debugStoreState()
+  
+    if (isLoading.value) {
+      console.warn('Chargement déjà en cours')
+      return null
+    }
+  
     try {
       isLoading.value = true
       error.value = null
-      const response = await apiService.menus.getActive()
-      activeMenu.value = response.data
       
-      // Ajouter ou mettre à jour dans la liste des menus
-      const index = menus.value.findIndex(menu => menu.id === response.data.id)
-      if (index !== -1) {
-        menus.value[index] = response.data
-      } else {
-        menus.value.push(response.data)
-      }
+      // Utiliser la méthode spéciale qui gère déjà les 404 correctement
+      const response = await apiService.menus.getActive()
+      
+      activeMenu.value = response
+      console.log('Menu actif défini:', activeMenu.value)
+      
+      return response
     } catch (err: any) {
-      // Si erreur 404, c'est normal - pas de menu actif
-      if (err.response && err.response.status === 404) {
-        activeMenu.value = null
-      } else {
+      console.error('Erreur détaillée fetchActiveMenu:', err)
+      
+      // Si ce n'est pas un 404 (déjà géré par apiService.menus.getActive)
+      if (err.status !== 404) {
         error.value = 'Erreur lors du chargement du menu actif'
-        console.error('Erreur fetchActiveMenu:', err)
       }
+      
+      return null
     } finally {
       isLoading.value = false
+      debugStoreState()
     }
   }
+
 
   async function createMenu(menuData: Partial<Menu>) {
     if (isLoading.value) return null
@@ -275,7 +293,88 @@ export const useMenuStore = defineStore('menu', () => {
         message: 'Génération de votre menu en cours...'
       })
       
-      const response = await apiService.menus.generateMenu(params)
+      // Calculer les dates de validité du menu
+      const now = new Date()
+      const validFrom = now.toISOString()
+      
+      // Calculer valid_to en fonction du type de menu (hebdo ou mensuel)
+      let validTo
+      if (params.type === 'week') {
+        const endDate = new Date(now)
+        endDate.setDate(now.getDate() + 7) // 7 jours pour un menu hebdomadaire
+        validTo = endDate.toISOString()
+      } else {
+        const endDate = new Date(now)
+        endDate.setDate(now.getDate() + 30) // 30 jours pour un menu mensuel
+        validTo = endDate.toISOString()
+      }
+      
+      // Structure basique de meal_schedule - exactement comme attendu par le backend
+      const mealSchedule = {
+        day_1: {
+          breakfast: null,
+          lunch: null,
+          dinner: null,
+          snack: null
+        },
+        day_2: {
+          breakfast: null,
+          lunch: null,
+          dinner: null,
+          snack: null
+        },
+        day_3: {
+          breakfast: null,
+          lunch: null,
+          dinner: null,
+          snack: null
+        },
+        day_4: {
+          breakfast: null,
+          lunch: null,
+          dinner: null,
+          snack: null
+        },
+        day_5: {
+          breakfast: null,
+          lunch: null,
+          dinner: null,
+          snack: null
+        },
+        day_6: {
+          breakfast: null,
+          lunch: null,
+          dinner: null,
+          snack: null
+        },
+        day_7: {
+          breakfast: null,
+          lunch: null,
+          dinner: null,
+          snack: null
+        }
+      }
+      
+      // ATTENTION: Strictement limité aux champs validés par le schéma Joi
+      // weeklyMenuSchema = Joi.object({
+      //   type: Joi.string().valid('weekly', 'monthly').required(),
+      //   meal_schedule: Joi.object().required(),
+      //   status: Joi.string().valid('active', 'archived', 'draft').default('active'),
+      //   is_customized: Joi.boolean().default(false),
+      //   valid_from: Joi.date().iso().required(),
+      //   valid_to: Joi.date().iso().greater(Joi.ref('valid_from')).required()
+      // }).required();
+      const apiParams = {
+        type: params.type === 'week' ? 'weekly' : 'monthly',
+        meal_schedule: mealSchedule,
+        valid_from: validFrom,
+        valid_to: validTo
+        // Les champs status et is_customized ont des valeurs par défaut dans le schéma
+      }
+      
+      console.log('Paramètres API convertis:', apiParams)
+      
+      const response = await apiService.menus.generateMenu(apiParams)
       generatedMenu.value = response.data
       
       // Ajouter le menu généré à la liste des menus

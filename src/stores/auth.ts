@@ -241,7 +241,42 @@ export const useAuthStore = defineStore('auth', () => {
       isLoading.value = false
     }
   }
+// Méthode pour synchroniser manuellement les données d'abonnement
+function syncSubscriptionData() {
+  // Vérifiez que l'utilisateur existe et a un abonnement
+  if (user.value?.subscription) {
+    // Vous pouvez ajouter une logique spécifique ici si nécessaire
+    // Par exemple, vérifier la date d'expiration, le statut, etc.
+    console.log('Synchronisation des données d\'abonnement', user.value.subscription)
+    
+    // Mise à jour potentielle des informations d'abonnement
+    // Par exemple, vérifier si l'abonnement est toujours actif
+    const isStillActive = checkSubscriptionValidity(user.value.subscription)
+    
+    // Mettre à jour le statut si nécessaire
+    if (user.value.subscription.isActive !== isStillActive) {
+      user.value.subscription.isActive = isStillActive
+      
+      // Sauvegarder dans le localStorage
+      localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+    }
+  }
+}
 
+// Fonction utilitaire pour vérifier la validité de l'abonnement
+function checkSubscriptionValidity(subscription: any): boolean {
+  // Logique personnalisée pour vérifier la validité de l'abonnement
+  // Par exemple :
+  if (!subscription) return false
+  
+  // Vérifier la date d'expiration si présente
+  if (subscription.expirationDate) {
+    return new Date(subscription.expirationDate) > new Date()
+  }
+  
+  // Vérifier le statut
+  return subscription.status === 'active'
+}
   // Mise à jour du profil
   async function updateProfile(profileData: Partial<User>) {
     const notificationStore = useNotificationStore()
@@ -293,6 +328,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoading,
     error,
     isVerified,  
+    syncSubscriptionData,
 
     // Computed
     isAuthenticated,
