@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUserPreferencesStore } from '@/stores/userPreferences'
 import { useFavoriteStore } from '@/stores/favoriteStore' 
 import { useThemeStore } from '@/stores/theme'
+import { useMenuStore } from '@/stores/menuStore' // Ajout du store de menu
+import { useNotificationStore } from '@/stores/NotificationStore'
 import { useVuelidate } from '@vuelidate/core'
 import { required, numeric, minValue } from '@vuelidate/validators'
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
@@ -15,7 +17,10 @@ import {
   UsersIcon,
   FaceSmileIcon,
   XMarkIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  ArrowPathIcon, // Icône pour synchronisation
+  CheckCircleIcon, // Icône pour succès
+  XCircleIcon // Icône pour erreur
 } from '@heroicons/vue/24/solid'
 
 // Router
@@ -26,6 +31,8 @@ const authStore = useAuthStore()
 const userPreferencesStore = useUserPreferencesStore()
 const favoriteStore = useFavoriteStore()
 const themeStore = useThemeStore()
+const menuStore = useMenuStore()
+const notificationStore = useNotificationStore()
 
 // Données réactives
 const formData = ref({
@@ -54,6 +61,10 @@ const formData = ref({
   },
   language: 'fr'
 })
+
+// Variables pour le suivi des changements
+const initialFormData = ref({})
+const hasUnsavedChanges = ref(false)
 
 const isPreferencesModalOpen = ref(false)
 const isConfirmModalOpen = ref(false) // Modal de confirmation pour la sauvegarde
@@ -112,6 +123,22 @@ const rules = {
 
 const v$ = useVuelidate(rules, formData)
 
+// Surveiller les changements dans le formulaire
+watch(formData, () => {
+  if (Object.keys(initialFormData.value).length > 0) {
+    // Comparer avec l'état initial pour détecter les changements
+    const initialJSON = JSON.stringify(initialFormData.value)
+    const currentJSON = JSON.stringify(formData.value)
+    hasUnsavedChanges.value = initialJSON !== currentJSON
+  }
+}, { deep: true })
+
+// Sauvegarder l'état initial des données du formulaire
+const saveInitialState = () => {
+  initialFormData.value = JSON.parse(JSON.stringify(formData.value))
+  hasUnsavedChanges.value = false
+}
+
 // Initialisation
 onMounted(async () => {
   isLoading.value = true
@@ -120,7 +147,8 @@ onMounted(async () => {
     // Initialiser les stores
     await Promise.all([
       userPreferencesStore.fetchUserProfile(),
-      favoriteStore.fetchFavorites()
+      favoriteStore.fetchFavorites(),
+      menuStore.fetchActiveMenu() // Charger aussi le menu actif
     ])
     
     // Remplir le formulaire avec les données du profil
@@ -131,12 +159,34 @@ onMounted(async () => {
       userPreferencesStore.initFromAuthStore()
       updateFormFromStore()
     }
+    
+    // Sauvegarder l'état initial pour détecter les modifications futures
+    saveInitialState()
   } catch (error) {
     console.error('Erreur lors de l\'initialisation du profil:', error)
     errorMessage.value = 'Erreur lors du chargement de votre profil'
   } finally {
     isLoading.value = false
   }
+})
+
+// Gestion de la navigation - prévenir la perte de données
+const confirmLeave = (e: BeforeUnloadEvent) => {
+  if (hasUnsavedChanges.value) {
+    e.preventDefault()
+    e.returnValue = ''
+    return ''
+  }
+}
+
+// Ajouter un écouteur pour éviter de perdre des changements non sauvegardés
+onMounted(() => {
+  window.addEventListener('beforeunload', confirmLeave)
+})
+
+// Nettoyage lors de la destruction du composant
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', confirmLeave)
 })
 
 // Copier les données du store vers le formulaire
@@ -266,10 +316,26 @@ const openConfirmationModal = async () => {
   const isValid = await v$.value.$validate();
   if (!isValid) {
     errorMessage.value = 'Veuillez corriger les erreurs dans le formulaire';
+    
+    // Afficher une notification d'erreur
+    notificationStore.error(
+      'Erreurs dans le formulaire',
+      'Veuillez corriger les erreurs avant de sauvegarder'
+    );
+    
     return;
   }
   
-  isConfirmModalOpen.value = true;
+  // Si des modifications ont été apportées, afficher la modale de confirmation
+  if (hasUnsavedChanges.value) {
+    isConfirmModalOpen.value = true;
+  } else {
+    // Si aucune modification, notifier l'utilisateur
+    notificationStore.info(
+      'Aucune modification',
+      'Aucune modification n\'a été détectée dans votre profil'
+    );
+  }
 }
 
 // Fermer la modal de confirmation
@@ -277,7 +343,7 @@ const closeConfirmationModal = () => {
   isConfirmModalOpen.value = false;
 }
 
-// Soumission du formulaire
+// Soumission du formulaire - sauvegarde globale pour toutes les sections du profil
 const handleSubmit = async () => {
   closeConfirmationModal(); // Fermer la modal
   isLoading.value = true;
@@ -285,7 +351,7 @@ const handleSubmit = async () => {
   successMessage.value = '';
 
   try {
-    // Mettre à jour le profil dans le store de préférences utilisateur
+    // 1. Mettre à jour le profil dans le store de préférences utilisateur
     userPreferencesStore.userProfile = {
       ...userPreferencesStore.userProfile,
       username: formData.value.username,
@@ -298,16 +364,17 @@ const handleSubmit = async () => {
         ...formData.value.dietaryRestrictions,
         allergies: [...formData.value.dietaryRestrictions.allergies]
       },
-      language: formData.value.language
+      language: formData.value.language,
+      theme: themeStore.isDark ? 'dark' : 'light'
     };
     
-    // Sauvegarder via l'API
+    // 2. Sauvegarder via l'API
     const success = await userPreferencesStore.saveUserProfile();
     
     if (success) {
       successMessage.value = 'Profil mis à jour avec succès';
       
-      // Mettre à jour le profil dans le store auth si nécessaire
+      // 3. Mettre à jour le profil dans le store auth pour synchronisation
       if (authStore.user) {
         await authStore.updateProfile({
           username: formData.value.username,
@@ -328,16 +395,40 @@ const handleSubmit = async () => {
         });
       }
       
-      // Rediriger vers la page d'accueil après une mise à jour réussie
+      // 4. Mettre à jour l'état initial après sauvegarde réussie
+      saveInitialState();
+      
+      // 5. Synchroniser avec le store des menus pour les suggestions personnalisées
+      try {
+        await menuStore.fetchActiveMenu();
+      } catch (menuError) {
+        console.warn('Erreur lors de la synchronisation du menu:', menuError);
+      }
+      
+      // 6. Afficher notification de succès
+      notificationStore.success(
+        'Modifications enregistrées',
+        'Toutes vos préférences ont été mises à jour avec succès'
+      );
+      
+      // 7. Rediriger vers la page d'accueil après une mise à jour réussie
       setTimeout(() => {
         router.push('/home');
-      }, 1500);
+      }, 2000);
     } else {
       errorMessage.value = 'Erreur lors de la mise à jour du profil';
+      notificationStore.error(
+        'Erreur de sauvegarde',
+        'Une erreur est survenue lors de la mise à jour de votre profil'
+      );
     }
   } catch (error: any) {
     console.error('Erreur lors de la mise à jour du profil:', error);
     errorMessage.value = error.message || 'Erreur lors de la mise à jour du profil';
+    notificationStore.error(
+      'Erreur',
+      errorMessage.value
+    );
   } finally {
     isLoading.value = false;
   }
@@ -346,11 +437,37 @@ const handleSubmit = async () => {
 
 <template>
   <div class="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
+    <!-- Bouton de sauvegarde global flottant -->
+    <div class="fixed bottom-6 right-6 z-10">
+      <button
+        @click="openConfirmationModal"
+        :disabled="isLoading"
+        class="flex items-center justify-center py-3 px-6 rounded-full text-white shadow-lg"
+        :class="[
+          hasUnsavedChanges 
+            ? 'bg-gradient-to-r from-mocha-600 to-mocha-700 hover:from-mocha-700 hover:to-mocha-800' 
+            : 'bg-gray-400'
+        ]"
+      >
+        <span v-if="isLoading" class="mr-2">
+          <!-- Icône de chargement -->
+          <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </span>
+        <span v-else-if="hasUnsavedChanges" class="mr-2">
+          <ArrowPathIcon class="h-5 w-5" />
+        </span>
+        {{ isLoading ? 'Enregistrement...' : (hasUnsavedChanges ? 'Enregistrer les modifications' : 'Aucune modification') }}
+      </button>
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <!-- Card Profil -->
       <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow duration-300">
         <h2 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Mon Profil</h2>
-        <form @submit.prevent="openConfirmationModal" class="space-y-6">
+        <form class="space-y-6">
           <div>
             <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Nom d'utilisateur
@@ -366,14 +483,8 @@ const handleSubmit = async () => {
               Le nom d'utilisateur est requis
             </p>
           </div>
-          <button
-            type="submit"
-            :disabled="isLoading"
-            class="w-full flex justify-center py-3 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-mocha-600 to-mocha-700 hover:from-mocha-700 hover:to-mocha-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-mocha-500 disabled:opacity-50 transition-all duration-300"
-          >
-            {{ isLoading ? 'Mise à jour...' : 'Sauvegarder les modifications' }}
-          </button>
-          <div class="text-center">
+          <!-- Afficher les messages de succès/erreur -->
+          <div class="text-center" v-if="successMessage || errorMessage">
             <p v-if="successMessage" class="text-green-600 text-sm">{{ successMessage }}</p>
             <p v-if="errorMessage" class="text-red-600 text-sm">{{ errorMessage }}</p>
           </div>
@@ -663,7 +774,7 @@ const handleSubmit = async () => {
                     <button
                       type="button"
                       class="rounded-md bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-gray-200 focus:outline-none"
-                      @@click="isPreferencesModalOpen = false"
+                      @click="isPreferencesModalOpen = false"
                     >
                       <span class="sr-only">Fermer</span>
                       <XMarkIcon class="h-6 w-6" aria-hidden="true" />
@@ -768,7 +879,7 @@ const handleSubmit = async () => {
                       </DialogTitle>
                       <div class="mt-2">
                         <p class="text-sm text-gray-500 dark:text-gray-400">
-                          Êtes-vous sûr de vouloir modifier les informations ?
+                          Êtes-vous sûr de vouloir enregistrer toutes les modifications apportées à votre profil ?
                         </p>
                       </div>
                     </div>
