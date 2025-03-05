@@ -1,254 +1,139 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useRecipeStore } from '@/stores/recipeStore'
+import { useSubscriptionStore } from '@/stores/subscription'
+import { useFavoriteStore } from '@/stores/favoriteStore'
 import RecipeModal from '@/components/recipe/RecipeModal.vue'
 import { HeartIcon } from '@heroicons/vue/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
 
 const authStore = useAuthStore()
+const recipeStore = useRecipeStore()
+const subscriptionStore = useSubscriptionStore()
+const favoriteStore = useFavoriteStore()
 
-interface NutritionalInfo {
-  calories: string
-  proteins: string
-  carbs: string
-  fats: string
-  saturatedFats?: string
-  fiber?: string
-  sodium?: string
-}
-
-interface Recipe {
-  id: number
-  title: string
-  image: string
-  category: string
-  difficulty: string
-  prepTime: string
-  totalTime: string
-  servings: number
-  ingredients: {
-    category: string
-    items: {
-      name: string
-      quantity: number
-      unit: string
-    }[]
-  }[]
-  nutritionalInfo: NutritionalInfo
-  steps: {
-    category?: string
-    instructions: string[]
-  }[]
-  premium: boolean
-}
-
-const recipes = ref<Recipe[]>([
-  {
-    id: 1,
-    title: 'Cuisses de dinde à la moutarde, riz basmati aux champignons',
-    image: '/images/dinde-moutarde.jpg',
-    category: 'Plat principal',
-    difficulty: 'Facile',
-    prepTime: '10 min',
-    totalTime: '1h 15 min',
-    servings: 4,
-    premium: false,
-    ingredients: [
-      {
-        category: 'Cuisses de dinde à la moutarde',
-        items: [
-          { name: 'Oignon', quantity: 100, unit: 'g' },
-          { name: 'Gousse d\'ail', quantity: 1, unit: 'pièce' },
-          { name: 'Moutarde à l\'ancienne', quantity: 2, unit: 'c. à soupe' },
-          { name: 'Moutarde forte', quantity: 1, unit: 'c. à café' },
-          { name: 'Huile d\'olive', quantity: 60, unit: 'g' },
-          { name: 'Sauce de soja', quantity: 3, unit: 'c. à soupe' },
-          { name: 'Cuisses de dinde', quantity: 2, unit: 'pièces' }
-        ]
-      },
-      {
-        category: 'Riz aux champignons',
-        items: [
-          { name: 'Gousse d\'ail', quantity: 1, unit: 'pièce' },
-          { name: 'Riz basmati', quantity: 200, unit: 'g' },
-          { name: 'Eau', quantity: 1000, unit: 'g' },
-          { name: 'Gros sel', quantity: 1, unit: 'c. à café' },
-          { name: 'Champignons de Paris frais', quantity: 600, unit: 'g' },
-          { name: 'Crème fraîche', quantity: 1, unit: 'c. à soupe' }
-        ]
-      }
-    ],
-    nutritionalInfo: {
-      calories: '749 kcal',
-      proteins: '30.8 g',
-      carbs: '96.8 g',
-      fats: '25.8 g',
-      saturatedFats: '4.5 g',
-      fiber: '6.3 g',
-      sodium: '1940.8 mg'
-    },
-    steps: [
-      {
-        category: 'Cuisses de dinde à la moutarde',
-        instructions: [
-          'Préchauffer le four à 180 °C (Th. 6).',
-          'Mettre l\'oignon et l\'ail dans le bol, hacher 5 sec/vitesse 5 et racler les parois.',
-          'Ajouter la moutarde à l\'ancienne, la moutarde forte, l\'huile d\'olive et la sauce de soja, mélanger 10 sec/vitesse 2.',
-          'Badigeonner les cuisses de dinde avec cette préparation, les disposer dans un plat et cuire 28 min à 180 °C.'
-        ]
-      },
-      {
-        category: 'Riz aux champignons',
-        instructions: [
-          'Hacher l\'ail 3 sec/vitesse 5, réserver.',
-          'Mettre le riz dans le panier cuisson, le rincer sous un filet d\'eau froide.',
-          'Dans le bol, ajouter l\'eau et le sel, réinsérer le panier et cuire avec le Varoma contenant les champignons et l\'ail pendant 20 min (Varoma/vitesse 1).',
-          'Égoutter le riz et mélanger les champignons avec la crème fraîche. Servir les cuisses accompagnées du riz et des champignons.'
-        ]
-      }
-    ]
-  },
-  {
-    id: 2,
-    title: 'Risotto aux épinards et crème au safran',
-    image: '/images/risotto-epinards.jpg',
-    category: 'Plat principal',
-    difficulty: 'Facile',
-    prepTime: '10 min',
-    totalTime: '40 min',
-    servings: 8,
-    premium: true,
-    ingredients: [
-      {
-        category: 'Crème au safran',
-        items: [
-          { name: 'Crème fraîche épaisse', quantity: 200, unit: 'g' },
-          { name: 'Safran', quantity: 2, unit: 'doses' },
-          { name: 'Sel', quantity: 2, unit: 'pincées' }
-        ]
-      },
-      {
-        category: 'Risotto aux épinards',
-        items: [
-          { name: 'Oignon', quantity: 90, unit: 'g' },
-          { name: 'Huile d\'olive', quantity: 20, unit: 'g' },
-          { name: 'Riz spécial risotto', quantity: 400, unit: 'g' },
-          { name: 'Épinards frais', quantity: 200, unit: 'g' },
-          { name: 'Eau', quantity: 850, unit: 'g' },
-          { name: 'Sel', quantity: 2, unit: 'pincées' }
-        ]
-      }
-    ],
-    nutritionalInfo: {
-      calories: '515 kcal',
-      proteins: '18 g',
-      carbs: '29 g',
-      fats: '36 g'
-    },
-    steps: [
-      {
-        category: 'Crème au safran',
-        instructions: [
-          'Mettre la crème, le safran et le sel dans le bol, chauffer 5 min/Varoma/vitesse 1, puis réserver dans une saucière.'
-        ]
-      },
-      {
-        category: 'Risotto aux épinards',
-        instructions: [
-          'Hacher l\'oignon 6 sec/vitesse 5 et racler les parois.',
-          'Ajouter l\'huile d\'olive et rissoler 5 min/Varoma/vitesse sans le gobelet doseur.',
-          'Ajouter le riz et les épinards, cuire 3 min à 100°C/vitesse 1.',
-          'Ajouter l\'eau et le sel, mettre le Varoma et cuire 22 min à 100°C/vitesse adaptée.',
-          'Mouler le risotto en portions (exemple : emporte-pièce de 10 cm), napper de crème au safran et servir chaud.'
-        ]
-      }
-    ]
-  },
-  {
-    id: 3,
-    title: 'Pâte à pancakes',
-    image: '/images/pancakes.jpg',
-    category: 'Dessert',
-    difficulty: 'Facile',
-    prepTime: '20 min',
-    totalTime: '30 min',
-    servings: 12,
-    premium: false,
-    ingredients: [
-      {
-        category: 'Ingrédients',
-        items: [
-          { name: 'Beurre doux', quantity: 50, unit: 'g' },
-          { name: 'Lait', quantity: 300, unit: 'g' },
-          { name: 'Œufs', quantity: 2, unit: 'pièces' },
-          { name: 'Sucre en poudre', quantity: 30, unit: 'g' },
-          { name: 'Farine de blé', quantity: 200, unit: 'g' },
-          { name: 'Levure chimique', quantity: 10, unit: 'g' },
-          { name: 'Sel', quantity: 0.5, unit: 'c. à café' }
-        ]
-      }
-    ],
-    nutritionalInfo: {
-      calories: '131 kcal',
-      proteins: '4 g',
-      carbs: '16 g',
-      fats: '6 g',
-      fiber: '0.5 g'
-    },
-    steps: [
-      {
-        instructions: [
-          'Faire fondre le beurre dans le bol 2 min à 70°C/vitesse 1.',
-          'Ajouter le lait, les œufs, le sucre, la farine, la levure et le sel, mixer 10 sec/vitesse 5.',
-          'Pour chaque pancake, verser une louche de pâte dans une poêle préalablement graissée, cuire 1-2 min jusqu\'à formation de bulles, retourner et cuire 1 min de plus. Répéter et servir chaud.'
-        ]
-      }
-    ]
-  }
-])
-
-const categories = ['Toutes', 'Entrée', 'Plat principal', 'Dessert']
+// État local
 const selectedCategory = ref('Toutes')
-const selectedRecipe = ref<Recipe | null>(null)
+const selectedRecipe = ref(null)
 const isModalOpen = ref(false)
-const favorites = ref<Set<number>>(new Set())
 
+// Catégories pour le filtre
+const categories = computed(() => ['Toutes', 'Petit-déjeuner', 'Déjeuner', 'Dîner', 'Dessert', 'En-cas'])
+
+// Mapping entre les catégories d'affichage et les meal_types API
+const categoryToMealType = {
+  'Toutes': null,
+  'Petit-déjeuner': 'breakfast',
+  'Déjeuner': 'lunch',
+  'Dîner': 'dinner',
+  'Dessert': 'dessert',
+  'En-cas': 'snack'
+}
+
+// Récupération des recettes filtrées
 const filteredRecipes = computed(() => {
-  let filtered = recipes.value
-  if (selectedCategory.value !== 'Toutes') {
-    filtered = filtered.filter(recipe => recipe.category === selectedCategory.value)
-  }
+  let recipes = [...recipeStore.recipes]
+
+  // Filtrer par abonnement
   if (!authStore.hasActiveSubscription) {
-    filtered = filtered.filter(recipe => !recipe.premium)
+    recipes = recipes.filter(recipe => !recipe.is_premium)
   }
-  return filtered
+
+  // Filtrer par catégorie
+  if (selectedCategory.value !== 'Toutes') {
+    const mealType = categoryToMealType[selectedCategory.value]
+    if (mealType) {
+      recipes = recipes.filter(recipe => recipe.meal_type === mealType)
+    }
+  }
+
+  return recipes
 })
 
-const toggleFavorite = (recipeId: number, event: Event) => {
+// Observer les changements de catégorie et filtrer les recettes
+watch(selectedCategory, (newCategory) => {
+  const mealType = categoryToMealType[newCategory]
+  recipeStore.filterByMealType(mealType)
+})
+
+// Gérer les favoris
+const toggleFavorite = async (recipeId, event) => {
   event.stopPropagation()
-  if (favorites.value.has(recipeId)) {
-    favorites.value.delete(recipeId)
-  } else {
-    favorites.value.add(recipeId)
+  if (!authStore.isAuthenticated) {
+    // Rediriger vers la page de connexion
+    return
+  }
+  
+  try {
+    await favoriteStore.toggleFavorite(recipeId)
+  } catch (error) {
+    console.error('Erreur lors de la modification des favoris:', error)
   }
 }
 
-const openRecipeModal = (recipe: Recipe) => {
+const isFavorite = (recipeId) => {
+  return favoriteStore.isFavorite(recipeId)
+}
+
+// Ouvrir la modal de recette
+const openRecipeModal = async (recipe) => {
   selectedRecipe.value = recipe
   isModalOpen.value = true
+  
+  // Optionnel: charger les détails complets si nécessaire
+  try {
+    const fullRecipe = await recipeStore.fetchRecipeById(recipe.id)
+    if (fullRecipe) {
+      selectedRecipe.value = fullRecipe
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement des détails de la recette:', error)
+  }
 }
+
+// Fonction utilitaire pour obtenir une URL d'image valide
+const getImageUrl = (imageUrl) => {
+  if (!imageUrl) return '/images/default-recipe.jpg'
+  
+  // Vérifier si l'URL est relative ou absolue
+  if (imageUrl.startsWith('http')) {
+    return imageUrl
+  }
+  
+  // Pour les images stockées localement
+  return '/images/default-recipe.jpg'
+}
+
+// Charger les données au montage du composant
+onMounted(async () => {
+  console.log("Component mounted")
+  
+  // Initialiser les données d'abonnement
+  if (authStore.isAuthenticated) {
+    await subscriptionStore.fetchCurrentPlan()
+  }
+  
+  // Charger les recettes
+  await recipeStore.fetchAllRecipes()
+  
+  // Initialiser les favoris si l'utilisateur est connecté
+  if (authStore.isAuthenticated) {
+    favoriteStore.initialize()
+  }
+})
 </script>
 
 <template>
   <div class="space-y-6">
     <!-- Filtres -->
     <div class="bento-card">
-      <div class="flex space-x-4">
+      <div class="flex space-x-4 overflow-x-auto pb-2">
         <button
           v-for="category in categories"
           :key="category"
           @click="selectedCategory = category"
-          class="px-4 py-2 rounded-lg transition-colors"
+          class="px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
           :class="selectedCategory === category ? 
             'bg-mocha-100 text-mocha-700 dark:bg-mocha-900 dark:text-mocha-100' : 
             'hover:bg-gray-100 dark:hover:bg-gray-700'"
@@ -258,8 +143,20 @@ const openRecipeModal = (recipe: Recipe) => {
       </div>
     </div>
 
+    <!-- État de chargement -->
+    <div v-if="recipeStore.isLoading" class="text-center py-10">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-mocha-500"></div>
+      <p class="mt-2 text-mocha-600">Chargement des recettes...</p>
+    </div>
+
+    <!-- Message si aucune recette -->
+    <div v-else-if="filteredRecipes.length === 0" class="text-center py-10">
+      <p class="text-mocha-600">Aucune recette disponible pour cette catégorie.</p>
+      <p v-if="recipeStore.error" class="mt-2 text-red-500">{{ recipeStore.error }}</p>
+    </div>
+
     <!-- Liste des recettes -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div
         v-for="recipe in filteredRecipes"
         :key="recipe.id"
@@ -268,12 +165,12 @@ const openRecipeModal = (recipe: Recipe) => {
       >
         <div class="relative aspect-video rounded-lg overflow-hidden mb-4">
           <img
-            :src="recipe.image"
+            :src="getImageUrl(recipe.image_url)"
             :alt="recipe.title"
             class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
           />
           <div
-            v-if="recipe.premium && !authStore.hasActiveSubscription"
+            v-if="recipe.is_premium && !authStore.hasActiveSubscription"
             class="absolute inset-0 bg-black/50 flex items-center justify-center"
           >
             <router-link
@@ -290,7 +187,7 @@ const openRecipeModal = (recipe: Recipe) => {
             class="absolute top-2 right-2 p-2 rounded-full bg-white/80 hover:bg-white transition-colors"
           >
             <HeartSolidIcon
-              v-if="favorites.has(recipe.id)"
+              v-if="isFavorite(recipe.id)"
               class="h-6 w-6 text-red-500"
             />
             <HeartIcon
@@ -303,10 +200,15 @@ const openRecipeModal = (recipe: Recipe) => {
         <div class="p-4">
           <h3 class="text-lg font-semibold mb-2 line-clamp-2">{{ recipe.title }}</h3>
           
-          <div class="flex items-center text-sm font-semibold space-x-4" style="color: rgba(217, 121, 4, 1);">
-            <span>{{ recipe.difficulty }}</span>
-            <span>{{ recipe.totalTime }}</span>
-            <span>{{ recipe.category }}</span>
+          <div class="flex items-center text-sm font-semibold space-x-4 text-mocha-500">
+            <span>{{ recipe.difficulty_level === 'easy' ? 'Facile' : 
+                    recipe.difficulty_level === 'medium' ? 'Moyen' : 'Difficile' }}</span>
+            <span>{{ recipe.prep_time + (recipe.cook_time || 0) }} min</span>
+            <span>{{ recipe.category || (recipe.meal_type === 'breakfast' ? 'Petit-déjeuner' : 
+                   recipe.meal_type === 'lunch' ? 'Déjeuner' :
+                   recipe.meal_type === 'dinner' ? 'Dîner' :
+                   recipe.meal_type === 'snack' ? 'En-cas' :
+                   recipe.meal_type === 'dessert' ? 'Dessert' : 'Autre') }}</span>
           </div>
         </div>
       </div>
@@ -337,6 +239,5 @@ const openRecipeModal = (recipe: Recipe) => {
         Voir les abonnements
       </router-link>
     </div>
-
   </div>
 </template>

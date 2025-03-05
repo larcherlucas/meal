@@ -17,10 +17,10 @@
         <button
           v-for="type in mealTypes"
           :key="type.id"
-          @click="filters.mealType = type.id; updateFilters()"
+          @click="filters.meal_type = type.id; updateFilters()"
           class="flex items-center px-3 py-1.5 rounded-full text-sm transition-colors"
           :class="[
-            filters.mealType === type.id
+            filters.meal_type === type.id
               ? 'bg-mocha-600 text-mocha-50 dark:bg-mocha-500'
               : 'bg-mocha-100 text-mocha-700 hover:bg-mocha-200 dark:bg-mocha-700 dark:text-mocha-300 dark:hover:bg-mocha-600'
           ]"
@@ -43,10 +43,10 @@
         <button
           v-for="time in prepTimes"
           :key="time.id"
-          @click="filters.prepTime = time.id; updateFilters()"
+          @click="filters.maxPrepTime = time.id; updateFilters()"
           class="px-3 py-1.5 rounded-full text-sm transition-colors"
           :class="[
-            filters.prepTime === time.id
+            filters.maxPrepTime === time.id
               ? 'bg-mocha-600 text-mocha-50 dark:bg-mocha-500'
               : 'bg-mocha-100 text-mocha-700 hover:bg-mocha-200 dark:bg-mocha-700 dark:text-mocha-300 dark:hover:bg-mocha-600'
           ]"
@@ -56,31 +56,6 @@
       </div>
     </div>
 
-    <!-- Origine -->
-    <div>
-      <h3 class="text-sm font-medium text-mocha-700 dark:text-mocha-300 mb-3">
-        <div class="flex items-center">
-          <GlobeAsiaAustraliaIcon class="h-4 w-4 mr-1.5" />
-          Origine
-        </div>
-      </h3>
-      <select
-        v-model="filters.origin"
-        @change="updateFilters"
-        class="w-full rounded-lg border-mocha-200 dark:border-mocha-600 
-               text-mocha-700 dark:text-mocha-300 bg-white dark:bg-mocha-700 
-               focus:ring-mocha-500 focus:border-mocha-500"
-      >
-        <option
-          v-for="origin in origins"
-          :key="origin.id"
-          :value="origin.id"
-        >
-          {{ origin.name }}
-        </option>
-      </select>
-    </div>
-
     <!-- Difficulté -->
     <div>
       <h3 class="text-sm font-medium text-mocha-700 dark:text-mocha-300 mb-3">Niveau de difficulté</h3>
@@ -88,10 +63,10 @@
         <button
           v-for="difficulty in difficulties"
           :key="difficulty.id"
-          @click="filters.difficulty = difficulty.id; updateFilters()"
+          @click="filters.difficulty_level = difficulty.id; updateFilters()"
           class="px-3 py-1.5 rounded-full text-sm transition-colors"
           :class="[
-            filters.difficulty === difficulty.id
+            filters.difficulty_level === difficulty.id
               ? 'bg-mocha-600 text-mocha-50 dark:bg-mocha-500'
               : 'bg-mocha-100 text-mocha-700 hover:bg-mocha-200 dark:bg-mocha-700 dark:text-mocha-300 dark:hover:bg-mocha-600'
           ]"
@@ -100,70 +75,114 @@
         </button>
       </div>
     </div>
+
+    <!-- Catégorie -->
+    <div>
+      <h3 class="text-sm font-medium text-mocha-700 dark:text-mocha-300 mb-3">
+        <div class="flex items-center">
+          <FolderIcon class="h-4 w-4 mr-1.5" />
+          Catégorie
+        </div>
+      </h3>
+      <select
+        v-model="filters.category"
+        @change="updateFilters"
+        class="w-full rounded-lg border-mocha-200 dark:border-mocha-600 
+               text-mocha-700 dark:text-mocha-300 bg-white dark:bg-mocha-700 
+               focus:ring-mocha-500 focus:border-mocha-500"
+      >
+        <option
+          v-for="category in categories"
+          :key="category.id"
+          :value="category.id"
+        >
+          {{ category.name }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Premium uniquement -->
+    <div class="flex items-center">
+      <input
+        id="premium-only"
+        v-model="filters.premiumOnly"
+        type="checkbox"
+        @change="updateFilters"
+        class="h-4 w-4 rounded border-mocha-300 dark:border-mocha-600 
+               text-mocha-600 focus:ring-mocha-500"
+      />
+      <label for="premium-only" class="ml-2 text-sm text-mocha-700 dark:text-mocha-300">
+        Recettes premium uniquement
+      </label>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 import {
   FunnelIcon,
   ClockIcon,
-  GlobeAsiaAustraliaIcon,
+  FolderIcon,
   SunIcon,
-  MoonIcon
+  MoonIcon,
+  CakeIcon,
+  CoffeeIcon,
+  GlobeAsiaAustraliaIcon
 } from '@heroicons/vue/24/outline'
 
 const emit = defineEmits<{
-  'update:filters': [filters: typeof defaultFilters]
+  'update:filters': [filters: any]
 }>()
 
 const defaultFilters = {
-  prepTime: 'all',
-  mealType: 'all',
-  origin: 'all',
-  difficulty: 'all'
+  maxPrepTime: null,
+  meal_type: null,
+  category: null,
+  difficulty_level: null,
+  premiumOnly: false
 }
 
-const filters = ref({ ...defaultFilters })
+const filters = reactive({ ...defaultFilters })
 
 const prepTimes = [
-  { id: 'all', name: 'Tous les temps' },
-  { id: 'quick', name: '< 30 min' },
-  { id: 'medium', name: '30-60 min' },
-  { id: 'long', name: '> 60 min' }
+  { id: null, name: 'Tous les temps' },
+  { id: 30, name: '< 30 min' },
+  { id: 60, name: '< 60 min' },
+  { id: 120, name: '< 2 heures' }
 ]
 
 const mealTypes = [
-  { id: 'all', name: 'Tous les repas', icon: FunnelIcon },
+  { id: null, name: 'Tous les repas', icon: FunnelIcon },
+  { id: 'breakfast', name: 'Petit-déjeuner', icon: CoffeeIcon },
   { id: 'lunch', name: 'Déjeuner', icon: SunIcon },
-  { id: 'dinner', name: 'Dîner', icon: MoonIcon }
+  { id: 'dinner', name: 'Dîner', icon: MoonIcon },
+  { id: 'dessert', name: 'Dessert', icon: CakeIcon },
+  { id: 'snack', name: 'En-cas', icon: FunnelIcon }
 ]
 
-const origins = [
-  { id: 'all', name: 'Toutes les origines' },
-  { id: 'french', name: 'France' },
-  { id: 'italian', name: 'Italie' },
-  { id: 'japanese', name: 'Japon' },
-  { id: 'chinese', name: 'Chine' },
-  { id: 'indian', name: 'Inde' },
-  { id: 'thai', name: 'Thaïlande' },
-  { id: 'mexican', name: 'Mexique' },
-  { id: 'reunion', name: 'Réunion' }
+const categories = [
+  { id: null, name: 'Toutes les catégories' },
+  { id: 'french', name: 'Française' },
+  { id: 'italian', name: 'Italienne' },
+  { id: 'asian', name: 'Asiatique' },
+  { id: 'vegetarian', name: 'Végétarienne' },
+  { id: 'vegan', name: 'Vegan' }
 ]
 
 const difficulties = [
-  { id: 'all', name: 'Toutes les difficultés' },
+  { id: null, name: 'Toutes les difficultés' },
   { id: 'easy', name: 'Facile' },
   { id: 'medium', name: 'Moyen' },
   { id: 'hard', name: 'Difficile' }
 ]
 
 const updateFilters = () => {
-  emit('update:filters', filters.value)
+  emit('update:filters', { ...filters })
 }
 
 const resetFilters = () => {
-  filters.value = { ...defaultFilters }
+  Object.assign(filters, defaultFilters)
   updateFilters()
 }
 </script>

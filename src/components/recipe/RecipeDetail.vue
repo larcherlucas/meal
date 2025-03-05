@@ -4,7 +4,7 @@
       <!-- Image -->
       <div class="relative aspect-video rounded-lg overflow-hidden">
         <img 
-          :src="recipe.image" 
+          :src="recipe.image_url || recipe.image || '/images/default-recipe.jpg'" 
           :alt="recipe.title"
           class="object-cover w-full h-full transform hover:scale-105 transition-transform duration-300"
         />
@@ -48,7 +48,7 @@
                 class="flex justify-between text-mocha-700 dark:text-mocha-300"
               >
                 <span>{{ ing.name }}</span>
-                <span>{{ ing.quantity }} {{ ing.unit }}</span>
+                <span>{{ getScaledQuantity(ing.quantity) }} {{ ing.unit }}</span>
               </li>
             </ul>
           </div>
@@ -60,7 +60,7 @@
         <h2 class="text-xl font-semibold text-mocha-800 dark:text-mocha-50 mb-4">Préparation</h2>
         <ol class="space-y-4">
           <li 
-            v-for="(step, index) in recipe.steps"
+            v-for="(step, index) in formattedSteps"
             :key="index"
             class="flex"
           >
@@ -95,16 +95,18 @@ interface Ingredient {
   name: string
   quantity: number
   unit: string
-  category: string
+  category?: string
 }
 
 interface Recipe {
   id: number
   title: string
-  image: string
-  servings: number
-  ingredients: Ingredient[]
-  steps: string[]
+  image?: string
+  image_url?: string
+  servings?: number
+  ingredients?: Ingredient[] | any
+  steps?: string[] | any
+  instructions?: any[]
   video?: string
 }
 
@@ -115,22 +117,97 @@ const props = defineProps<{
 const servings = ref(4)
 const availableServings = [2, 4, 6, 8]
 
+// Adapter les ingrédients au format attendu
+const normalizedIngredients = computed(() => {
+  if (!props.recipe.ingredients) return [];
+  
+  // Si la structure est déjà celle attendue
+  if (Array.isArray(props.recipe.ingredients) && props.recipe.ingredients[0]?.category) {
+    return props.recipe.ingredients;
+  }
+  
+  // Si c'est un tableau d'objets sans catégorie
+  if (Array.isArray(props.recipe.ingredients) && props.recipe.ingredients[0]?.name) {
+    return props.recipe.ingredients.map(ing => ({
+      ...ing,
+      category: 'Ingrédients'
+    }));
+  }
+  
+  // Si c'est un format spécifique (par exemple du backend)
+  if (typeof props.recipe.ingredients === 'object' && !Array.isArray(props.recipe.ingredients)) {
+    // Essayer d'extraire des structures connues
+    if (props.recipe.ingredients.ingredients && Array.isArray(props.recipe.ingredients.ingredients)) {
+      return props.recipe.ingredients.ingredients.map(ing => ({
+        ...ing,
+        category: 'Ingrédients'
+      }));
+    }
+  }
+  
+  // Format fallback
+  return [];
+});
+
 const scaledIngredients = computed(() => {
-  const scale = servings.value / props.recipe.servings
-  return props.recipe.ingredients.map(ing => ({
+  const recipeServings = props.recipe.servings || 4;
+  const scale = servings.value / recipeServings;
+  
+  return normalizedIngredients.value.map(ing => ({
     ...ing,
     quantity: Math.round((ing.quantity * scale) * 10) / 10
-  }))
-})
+  }));
+});
 
 const ingredientsByCategory = computed(() => {
-  const categories: Record<string, Ingredient[]> = {}
+  const categories: Record<string, Ingredient[]> = {};
+  
   scaledIngredients.value.forEach(ing => {
-    if (!categories[ing.category]) {
-      categories[ing.category] = []
+    const category = ing.category || 'Ingrédients';
+    if (!categories[category]) {
+      categories[category] = [];
     }
-    categories[ing.category].push(ing)
-  })
-  return categories
-})
+    categories[category].push(ing);
+  });
+  
+  return categories;
+});
+
+// Formater les étapes
+const formattedSteps = computed(() => {
+  if (!props.recipe.steps) return [];
+  
+  // Si c'est un tableau simple de strings
+  if (Array.isArray(props.recipe.steps) && typeof props.recipe.steps[0] === 'string') {
+    return props.recipe.steps;
+  }
+  
+  // Si c'est un objet avec instructions
+  if (props.recipe.steps && Array.isArray(props.recipe.steps) && props.recipe.steps[0]?.instructions) {
+    // Concaténer toutes les instructions de toutes les sections
+    return props.recipe.steps.flatMap(section => section.instructions);
+  }
+  
+  // Si les instructions sont dans une autre propriété
+  if (props.recipe.instructions) {
+    if (Array.isArray(props.recipe.instructions)) {
+      if (typeof props.recipe.instructions[0] === 'string') {
+        return props.recipe.instructions;
+      }
+      if (props.recipe.instructions[0]?.instructions) {
+        return props.recipe.instructions.flatMap(section => section.instructions);
+      }
+    }
+  }
+  
+  // Format fallback
+  return [];
+});
+
+// Mise à l'échelle des quantités
+const getScaledQuantity = (quantity: number) => {
+  const recipeServings = props.recipe.servings || 4;
+  const scale = servings.value / recipeServings;
+  return Math.round((quantity * scale) * 10) / 10;
+};
 </script>
