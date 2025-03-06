@@ -19,7 +19,7 @@ export interface FavoriteRecipe {
 }
 
 export interface FavoriteResponse {
-  id: number;
+  id?: number;
   user_id: string;
   recipe_id: number;
   created_at: string;
@@ -87,53 +87,53 @@ export const useFavoriteStore = defineStore('favorite', () => {
     
     try {
       checkAuthentication()
-      // Cette route doit correspondre au backend
-      const response = await apiService.get('/favorites')
       
-      // Adapter selon le format de réponse du backend
+      // Appel à l'API avec gestion des différents formats de réponse possibles
+      const response = await apiService.favorites.getAll();
+      
+      // Traiter la réponse selon sa structure
       if (response && Array.isArray(response)) {
-        favoritesDetails.value = response
-        favorites.value = response.map(fav => fav.recipe_id)
+        // Format simple: un tableau de favoris
+        favoritesDetails.value = response;
+        favorites.value = response.map(fav => fav.recipe_id);
       } else if (response && response.data && Array.isArray(response.data)) {
-        // Structure alternative si l'API retourne { status: "success", data: [...] }
-        favoritesDetails.value = response.data
-        favorites.value = response.data.map((fav: FavoriteResponse) => fav.recipe_id)
+        // Format avec data: { status, data: [...] }
+        favoritesDetails.value = response.data;
+        favorites.value = response.data.map((fav: FavoriteResponse) => fav.recipe_id);
         
         // Mettre à jour les informations d'abonnement si présentes
         if (response.subscription) {
           subscriptionInfo.value = {
             active: !!response.subscription.active,
             type: response.subscription.type || 'none'
-          }
+          };
+        }
+      } else if (response && response.status === 'success' && response.data) {
+        // Format API standard: { status: 'success', data: [...] }
+        favoritesDetails.value = Array.isArray(response.data) ? response.data : [response.data];
+        favorites.value = favoritesDetails.value.map(fav => fav.recipe_id);
+        
+        // Mettre à jour les informations d'abonnement si présentes
+        if (response.subscription) {
+          subscriptionInfo.value = {
+            active: !!response.subscription.active,
+            type: response.subscription.type || 'none'
+          };
         }
       } else {
         // Fallback pour les données temporaires pendant le développement
-        favoritesDetails.value = [
-          {
-            id: 1,
-            user_id: getAuthStore().user?.id || '',
-            recipe_id: 1,
-            created_at: new Date().toISOString(),
-            recipe: {
-              id: 1,
-              title: 'Cuisses de dinde à la moutarde',
-              image_url: '/images/dinde-moutarde.jpg',
-              difficulty_level: 'Facile',
-              prep_time: 15,
-              cook_time: 60
-            }
-          }
-        ]
-        favorites.value = [1]
+        console.warn('Format de réponse non reconnu pour les favoris, utilisation des données fallback');
+        favoritesDetails.value = [];
+        favorites.value = [];
       }
       
-      isInitialized.value = true
+      isInitialized.value = true;
     } catch (err: any) {
-      error.value = err.message || 'Erreur lors du chargement des favoris'
-      getNotificationStore().error(error.value)
-      console.error('Erreur lors du chargement des favoris:', err)
+      error.value = err.message || 'Erreur lors du chargement des favoris';
+      getNotificationStore().error(error.value);
+      console.error('Erreur lors du chargement des favoris:', err);
     } finally {
-      isLoading.value = false
+      isLoading.value = false;
     }
   }
 
@@ -143,65 +143,63 @@ export const useFavoriteStore = defineStore('favorite', () => {
    * @returns true si ajouté, false si retiré
    */
   async function toggleFavorite(recipeId: number): Promise<boolean> {
-    if (isLoading.value) return isFavorite.value(recipeId)
-
-    error.value = null
-    isLoading.value = true
+    if (isLoading.value) return isFavorite.value(recipeId);
+  
+    error.value = null;
+    isLoading.value = true;
     
     try {
-      checkAuthentication()
-      const isFav = isFavorite.value(recipeId)
+      checkAuthentication();
+      const isFav = isFavorite.value(recipeId);
       
       if (isFav) {
-        // Retirer des favoris - adapter selon l'API
-        await apiService.delete(`/favorites/${recipeId}`)
-        favorites.value = favorites.value.filter(id => id !== recipeId)
-        favoritesDetails.value = favoritesDetails.value.filter(fav => fav.recipe_id !== recipeId)
-        getNotificationStore().success('Recette retirée des favoris')
-        return false
+        // Retirer des favoris
+        await apiService.favorites.remove(recipeId);
+        favorites.value = favorites.value.filter(id => id !== recipeId);
+        favoritesDetails.value = favoritesDetails.value.filter(fav => fav.recipe_id !== recipeId);
+        getNotificationStore().success('Recette retirée des favoris');
+        return false;
       } else {
-        // Ajouter aux favoris - adapter selon l'API
-        const response = await apiService.post('/favorites', { recipe_id: recipeId })
+        // Ajouter aux favoris
+        const response = await apiService.favorites.add({ recipe_id: recipeId });
         
-        // Si l'API retourne les détails du favori
+        // Traiter la réponse
         if (response) {
-          const favoriteData = response.data || response
-          favorites.value.push(recipeId)
-          favoritesDetails.value.push(favoriteData)
+          const favoriteData = response.data || response;
+          favorites.value.push(recipeId);
+          
+          // Ajouter le favori avec les détails disponibles
+          if (favoriteData) {
+            favoritesDetails.value.push({
+              user_id: favoriteData.user_id || getAuthStore().user?.id || '',
+              recipe_id: recipeId,
+              created_at: favoriteData.created_at || new Date().toISOString(),
+              recipe: favoriteData.recipe || undefined
+            });
+          }
+          
+          getNotificationStore().success('Recette ajoutée aux favoris');
+          return true;
         } else {
-          // Fallback si l'API retourne juste un statut de succès
-          favorites.value.push(recipeId)
-          // Ajouter un favori minimal sans les détails de la recette
-          favoritesDetails.value.push({
-            id: Date.now(), // ID temporaire
-            user_id: getAuthStore().user?.id || '',
-            recipe_id: recipeId,
-            created_at: new Date().toISOString()
-          })
+          return false;
         }
-        
-        getNotificationStore().success('Recette ajoutée aux favoris')
-        return true
       }
     } catch (err: any) {
-      // Gérer le cas particulier d'erreur d'abonnement
-      if (err.message && (
-        err.message.includes('premium') || 
-        err.message.includes('abonnement')
-      )) {
+      // Gestion des erreurs
+      if (err.status === 403) {
         getNotificationStore().error(
           'Abonnement requis', 
           'Cette recette n\'est disponible qu\'avec un abonnement premium'
-        )
+        );
       } else {
-        error.value = err.message || 'Erreur lors de la modification des favoris'
-        getNotificationStore().error(error.value)
+        error.value = err.message || 'Erreur lors de la modification des favoris';
+        getNotificationStore().error(error.value);
       }
       
-      console.error('Erreur lors de la modification des favoris:', err)
-      return isFavorite.value(recipeId)
+      console.error('Erreur lors de la modification des favoris:', err);
+      return isFavorite.value(recipeId);
     } finally {
-      isLoading.value = false
+      isLoading.value = false;
     }
   }
 
@@ -210,8 +208,8 @@ export const useFavoriteStore = defineStore('favorite', () => {
    * @param recipeId ID de la recette
    */
   async function addToFavorites(recipeId: number): Promise<boolean> {
-    if (isFavorite.value(recipeId)) return true
-    return toggleFavorite(recipeId)
+    if (isFavorite.value(recipeId)) return true;
+    return toggleFavorite(recipeId);
   }
 
   /**
@@ -219,8 +217,8 @@ export const useFavoriteStore = defineStore('favorite', () => {
    * @param recipeId ID de la recette
    */
   async function removeFromFavorites(recipeId: number): Promise<boolean> {
-    if (!isFavorite.value(recipeId)) return false
-    return !await toggleFavorite(recipeId)
+    if (!isFavorite.value(recipeId)) return false;
+    return !await toggleFavorite(recipeId);
   }
 
   /**
@@ -228,14 +226,14 @@ export const useFavoriteStore = defineStore('favorite', () => {
    * @param recipeId ID de la recette
    */
   async function checkIsFavorite(recipeId: number): Promise<boolean> {
-    if (!getAuthStore().isAuthenticated) return false
+    if (!getAuthStore().isAuthenticated) return false;
     
     try {
-      const response = await apiService.get(`/favorites/check/${recipeId}`)
-      return response?.isFavorite || false
+      const response = await apiService.favorites.check(recipeId);
+      return (response?.isFavorite || response?.data?.isFavorite) || false;
     } catch (err) {
-      console.error('Erreur lors de la vérification du favori:', err)
-      return false
+      console.error('Erreur lors de la vérification du favori:', err);
+      return false;
     }
   }
 
@@ -244,7 +242,7 @@ export const useFavoriteStore = defineStore('favorite', () => {
    */
   function initialize() {
     if (!isInitialized.value && getAuthStore().isAuthenticated) {
-      fetchFavorites()
+      fetchFavorites();
     }
   }
 
@@ -252,21 +250,21 @@ export const useFavoriteStore = defineStore('favorite', () => {
    * Réinitialise le store (à appeler après la déconnexion)
    */
   function reset() {
-    favorites.value = []
-    favoritesDetails.value = []
+    favorites.value = [];
+    favoritesDetails.value = [];
     subscriptionInfo.value = {
       active: false,
       type: 'none'
-    }
-    error.value = null
-    isInitialized.value = false
+    };
+    error.value = null;
+    isInitialized.value = false;
   }
 
   /**
    * Efface les erreurs
    */
   function clearError() {
-    error.value = null
+    error.value = null;
   }
 
   return {
@@ -296,4 +294,4 @@ export const useFavoriteStore = defineStore('favorite', () => {
     reset,
     clearError
   }
-})
+});

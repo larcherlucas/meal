@@ -303,6 +303,25 @@ export const apiService = {
     }
   },
   
+  // Namespace pour les opérations liées aux favoris
+  favorites: {
+    getAll: async () => {
+      return apiService.get('/favorites');
+    },
+    
+    check: async (recipeId: number) => {
+      return apiService.get(`/favorites/${recipeId}/check`);
+    },
+    
+    add: async (data: { recipe_id: number }) => {
+      return apiService.post('/favorites', data);
+    },
+    
+    remove: async (recipeId: number) => {
+      return apiService.delete(`/favorites/${recipeId}`);
+    }
+  },
+  
   post: async <T>(url: string, data?: unknown): Promise<T> => {
     const response = await api.post<ApiSuccessResponse<T>>(url, data)
     return (response as unknown as ApiSuccessResponse<T>).data
