@@ -75,6 +75,7 @@ api.interceptors.request.use(
 // Intercepteur de réponses avec gestion avancée
 api.interceptors.response.use(
   (response: AxiosResponse) => {
+    console.log(`Response from ${response.config.url}:`, response.data);
     // Si la réponse est déjà dans le format attendu, la retourner telle quelle
     if (response.data && response.data.status === 'success') {
       return response.data

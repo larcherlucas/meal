@@ -52,6 +52,12 @@ export const useRecipeStore = defineStore('recipe', () => {
     meal_type: null as 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert' | null
   })
 
+  // États pour le cache
+  const recipeCache = ref<Record<number, Recipe>>({})
+  const categoryCache = ref<Record<string, Recipe[]>>({})
+  const lastFetchTime = ref<Record<string, number>>({})
+  const cacheDuration = ref(15 * 60 * 1000) // 15 minutes en millisecondes
+
   // Computed properties
   const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value))
   
@@ -79,13 +85,29 @@ export const useRecipeStore = defineStore('recipe', () => {
     return categories
   })
 
+  // Computed pour vérifier la validité du cache
+  const isCacheValid = (cacheKey: string) => {
+    const lastFetch = lastFetchTime.value[cacheKey] || 0
+    return Date.now() - lastFetch < cacheDuration.value
+  }
+
   // Actions
-  async function fetchAllRecipes() {
+  async function fetchAllRecipes(forceRefresh = false) {
     try {
+      // Vérifier si on peut utiliser le cache
+      const cacheKey = `all_${searchQuery.value}_${JSON.stringify(filterOptions.value)}`
+      
+      if (!forceRefresh && isCacheValid(cacheKey) && categoryCache.value[cacheKey]) {
+        // Si le cache est valide, utiliser les données du cache
+        console.log("Utilisation du cache pour les recettes:", cacheKey)
+        recipes.value = categoryCache.value[cacheKey]
+        return recipes.value
+      }
+      
       isLoading.value = true;
       error.value = null;
       
-      console.log("Fetching recipes...");
+      console.log("Chargement des recettes depuis l'API...");
       
       // Préparer les paramètres de requête
       const params: Record<string, any> = {};
@@ -99,41 +121,50 @@ export const useRecipeStore = defineStore('recipe', () => {
       // Utiliser le namespace recipes de apiService
       const response = await apiService.recipes.getAll(params);
       
-      // Afficher la structure complète de la réponse pour déboguer
-      console.log("API response structure:", JSON.stringify(response, null, 2));
-      
       // Adapter le traitement selon la structure réelle de la réponse
+      let fetchedRecipes: Recipe[] = [];
+      
       // Si la réponse est directement un tableau de recettes
       if (Array.isArray(response)) {
-        recipes.value = response;
+        fetchedRecipes = response;
         totalItems.value = response.length;
       } 
       // Si la réponse a une structure avec un champ 'data'
       else if (response && response.data) {
         // Si data est un tableau
         if (Array.isArray(response.data)) {
-          recipes.value = response.data;
+          fetchedRecipes = response.data;
         } else {
           // Si data est un objet qui contient les recettes
-          recipes.value = response.data.recipes || [];
+          fetchedRecipes = response.data.recipes || [];
         }
         
-        totalItems.value = response.totalCount || recipes.value.length;
+        totalItems.value = response.totalCount || fetchedRecipes.length;
       } 
       // Autre format de réponse possible
       else {
-        recipes.value = [];
+        fetchedRecipes = [];
         totalItems.value = 0;
         throw new Error("Format de réponse API non reconnu");
       }
       
       // Ajouter la catégorie pour compatibilité avec l'UI
-      recipes.value = recipes.value.map(recipe => ({
+      fetchedRecipes = fetchedRecipes.map(recipe => ({
         ...recipe,
         category: getCategoryFromMealType(recipe.meal_type)
       }));
       
-      console.log("Recipes loaded:", recipes.value.length);
+      // Mettre à jour le cache
+      fetchedRecipes.forEach(recipe => {
+        recipeCache.value[recipe.id] = recipe
+      })
+      
+      // Sauvegarder la liste complète dans le cache
+      categoryCache.value[cacheKey] = fetchedRecipes
+      lastFetchTime.value[cacheKey] = Date.now()
+      
+      recipes.value = fetchedRecipes;
+      console.log("Recettes chargées:", recipes.value.length);
       return recipes.value;
     } catch (err: any) {
       handleError(err, 'Erreur lors du chargement des recettes');
@@ -142,6 +173,7 @@ export const useRecipeStore = defineStore('recipe', () => {
       isLoading.value = false;
     }
   }
+
   // Fonction utilitaire pour convertir meal_type en category
   function getCategoryFromMealType(mealType: string): string {
     switch (mealType) {
@@ -154,29 +186,84 @@ export const useRecipeStore = defineStore('recipe', () => {
     }
   }
 
-  async function fetchRecipeById(id: number) {
+  async function fetchRecipeById(id: number, forceRefresh = false) {
     try {
-      isLoading.value = true
-      error.value = null
-      
-      const response = await api.get(`/api/v1/recipes/${id}`);
-      
-      if (response && response.data) {
-        // Déterminer si la réponse est déjà l'objet recette ou contient un champ data
-        const recipeData = response.data.data || response.data;
-        
-        // Adapter la recette pour l'affichage
-        currentRecipe.value = {
-          ...recipeData,
-          category: getCategoryFromMealType(recipeData.meal_type)
-        };
-        
+      // Vérifier si on peut utiliser le cache
+      if (!forceRefresh && recipeCache.value[id] && (recipeCache.value[id].ingredients || !authStore.isAuthenticated)) {
+        console.log(`Utilisation du cache pour la recette #${id}`);
+        currentRecipe.value = recipeCache.value[id];
         return currentRecipe.value;
       }
       
-      throw new Error("Recette non trouvée");
+      isLoading.value = true;
+      error.value = null;
+      
+      console.log(`Chargement de la recette #${id} depuis l'API...`);
+      
+      const response = await apiService.recipes.getById(id);
+      
+      // Vérifier différentes structures de réponse possibles
+      let recipeData;
+      
+      if (response && response.data) {
+        // Cas 1: La réponse contient un objet data qui contient lui-même un objet data
+        if (response.data.data) {
+          recipeData = response.data.data;
+        } 
+        // Cas 2: La réponse contient directement un objet data
+        else {
+          recipeData = response.data;
+        }
+      } 
+      // Cas 3: La réponse est directement les données de recette
+      else if (response) {
+        recipeData = response;
+      }
+      
+      if (!recipeData) {
+        throw new Error("Recette non trouvée");
+      }
+      
+      // Vérification pour les comptes premium
+      if (recipeData.is_premium) {
+        const hasValidSubscription = 
+          authStore.isAuthenticated && (
+            authStore.user?.role === 'premium' || 
+            authStore.user?.role === 'admin' ||
+            authStore.hasActiveSubscription
+          );
+        
+        if (!hasValidSubscription) {
+          throw new Error("Cette recette nécessite un abonnement premium");
+        }
+      }
+      
+      // Adapter la recette pour l'affichage
+      recipeData = {
+        ...recipeData,
+        category: getCategoryFromMealType(recipeData.meal_type)
+      };
+      
+      // Mettre à jour le cache
+      recipeCache.value[id] = recipeData;
+      
+      currentRecipe.value = recipeData;
+      return currentRecipe.value;
     } catch (err: any) {
-      handleError(err, `Erreur lors du chargement de la recette #${id}`);
+      // Vérifiez si l'erreur est liée au statut premium
+      if ((err.message && err.message.includes("premium")) || err.status === 403) {
+        notificationStore.info(
+          "Recette premium",
+          "Cette recette nécessite un abonnement premium. Accédez à toutes nos recettes en vous abonnant."
+        );
+        
+        // Rediriger vers la page d'abonnement si ce n'est pas déjà le cas
+        if (router.currentRoute.value.path !== '/subscription') {
+          router.push('/subscription');
+        }
+      } else {
+        handleError(err, `Erreur lors du chargement de la recette #${id}`);
+      }
       return null;
     } finally {
       isLoading.value = false;
@@ -186,13 +273,31 @@ export const useRecipeStore = defineStore('recipe', () => {
   async function searchRecipes(query: string) {
     searchQuery.value = query;
     currentPage.value = 1;
-    await fetchAllRecipes();
+    // Force refresh pour les recherches
+    await fetchAllRecipes(true);
   }
 
   async function filterByMealType(mealType: string | null) {
     filterOptions.value.meal_type = mealType as any;
     currentPage.value = 1;
-    await fetchAllRecipes();
+    
+    // Vérifier si on a déjà des recettes en cache pour ce type de repas
+    const cacheKey = `mealType_${mealType}_${searchQuery.value}`;
+    
+    if (isCacheValid(cacheKey) && categoryCache.value[cacheKey]) {
+      console.log(`Utilisation du cache pour le type ${mealType}`);
+      recipes.value = categoryCache.value[cacheKey];
+      return recipes.value;
+    }
+    
+    // Sinon, charger depuis l'API
+    const result = await fetchAllRecipes();
+    
+    // Mettre à jour le cache pour ce type de repas
+    categoryCache.value[cacheKey] = [...recipes.value];
+    lastFetchTime.value[cacheKey] = Date.now();
+    
+    return result;
   }
 
   function setPage(page: number) {
@@ -219,9 +324,38 @@ export const useRecipeStore = defineStore('recipe', () => {
     notificationStore.error(error.value || defaultMessage);
   }
 
+  // Méthode pour effacer le cache
+  function clearCache(type?: string, id?: number) {
+    if (id) {
+      // Effacer une recette spécifique
+      delete recipeCache.value[id];
+      console.log(`Cache effacé pour la recette #${id}`);
+    } else if (type) {
+      // Effacer un type spécifique
+      Object.keys(categoryCache.value).forEach(key => {
+        if (key.includes(type)) {
+          delete categoryCache.value[key];
+          delete lastFetchTime.value[key];
+        }
+      });
+      console.log(`Cache effacé pour le type ${type}`);
+    } else {
+      // Effacer tout le cache
+      recipeCache.value = {};
+      categoryCache.value = {};
+      lastFetchTime.value = {};
+      console.log("Cache entièrement effacé");
+    }
+  }
+
+  // Méthode pour rafraîchir une recette spécifique
+  async function refreshRecipe(id: number) {
+    return await fetchRecipeById(id, true);
+  }
+
   // Initialisation - Charger les recettes au démarrage du store
   function initialize() {
-    console.log("Initializing recipe store...");
+    console.log("Initialisation du store de recettes...");
     fetchAllRecipes();
   }
 
@@ -250,6 +384,8 @@ export const useRecipeStore = defineStore('recipe', () => {
     filterByMealType,
     setPage,
     clearError,
-    initialize
+    initialize,
+    clearCache,
+    refreshRecipe
   }
 })

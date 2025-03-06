@@ -17,6 +17,7 @@ const favoriteStore = useFavoriteStore()
 const selectedCategory = ref('Toutes')
 const selectedRecipe = ref(null)
 const isModalOpen = ref(false)
+const useCache = ref(true) // Nouvel état pour activer/désactiver le cache
 
 // Catégories pour le filtre
 const categories = computed(() => ['Toutes', 'Petit-déjeuner', 'Déjeuner', 'Dîner', 'Dessert', 'En-cas'])
@@ -31,9 +32,37 @@ const categoryToMealType = {
   'En-cas': 'snack'
 }
 
+// Fonction de débogage de l'état d'authentification et d'abonnement
+function checkAuthAndSubscription() {
+  console.log("===== Auth & Subscription Status =====")
+  console.log("isAuthenticated:", authStore.isAuthenticated)
+  console.log("User:", authStore.user)
+  console.log("hasActiveSubscription:", authStore.hasActiveSubscription)
+  console.log("Token:", authStore.token ? authStore.token.substring(0, 20) + "..." : "No token")
+  console.log("Subscription:", subscriptionStore.getCurrentPlan?.value)
+  console.log("Cache enabled:", useCache.value)
+  console.log("================================")
+}
+
+// Nouvelle fonction pour s'assurer que les données d'abonnement sont synchronisées
+const ensureSubscriptionData = async () => {
+  // Si le statut d'abonnement est undefined, forcer une synchronisation
+  if (authStore.isAuthenticated && subscriptionStore.getCurrentPlan?.value === undefined) {
+    console.log("Synchronizing subscription data...");
+    await authStore.syncSubscriptionData();
+    await subscriptionStore.fetchCurrentPlan();
+  }
+  
+  checkAuthAndSubscription();
+}
+
 // Récupération des recettes filtrées
 const filteredRecipes = computed(() => {
   let recipes = [...recipeStore.recipes]
+  
+  // Log pour débogage - statut d'abonnement
+  console.log("Current subscription status:", authStore.hasActiveSubscription)
+  console.log("Premium recipes count:", recipes.filter(r => r.is_premium).length)
 
   // Filtrer par abonnement
   if (!authStore.hasActiveSubscription) {
@@ -54,7 +83,8 @@ const filteredRecipes = computed(() => {
 // Observer les changements de catégorie et filtrer les recettes
 watch(selectedCategory, (newCategory) => {
   const mealType = categoryToMealType[newCategory]
-  recipeStore.filterByMealType(mealType)
+  // Passer le paramètre forceRefresh à false pour utiliser le cache si disponible
+  recipeStore.filterByMealType(mealType, !useCache.value)
 })
 
 // Gérer les favoris
@@ -78,14 +108,26 @@ const isFavorite = (recipeId) => {
 
 // Ouvrir la modal de recette
 const openRecipeModal = async (recipe) => {
+  // Assurer la synchronisation des données d'abonnement avant d'ouvrir la modal
+  await ensureSubscriptionData();
+  
   selectedRecipe.value = recipe
   isModalOpen.value = true
   
-  // Optionnel: charger les détails complets si nécessaire
+  console.log("Opening recipe modal for:", recipe.id, recipe.title)
+  console.log("Is premium:", recipe.is_premium)
+  console.log("User role:", authStore.user?.role)
+  console.log("Has active subscription:", authStore.hasActiveSubscription)
+  
+  // Utiliser le cache pour charger les détails de la recette si activé
   try {
-    const fullRecipe = await recipeStore.fetchRecipeById(recipe.id)
+    console.log("Fetching complete recipe details...")
+    const fullRecipe = await recipeStore.fetchRecipeById(recipe.id, !useCache.value)
     if (fullRecipe) {
+      console.log("Successfully fetched recipe details:", fullRecipe.title)
       selectedRecipe.value = fullRecipe
+    } else {
+      console.warn("Failed to fetch recipe details, details are null")
     }
   } catch (error) {
     console.error('Erreur lors du chargement des détails de la recette:', error)
@@ -105,27 +147,108 @@ const getImageUrl = (imageUrl) => {
   return '/images/default-recipe.jpg'
 }
 
+// Cette fonction permet de forcer la mise à jour des informations d'authentification
+// et d'abonnement si nécessaire
+const refreshAuthAndSubscription = async () => {
+  console.log("Refreshing auth and subscription data...")
+  
+  if (authStore.isAuthenticated) {
+    try {
+      await authStore.forceSubscriptionSync();
+      await subscriptionStore.fetchCurrentPlan()
+      console.log("Subscription refreshed:", subscriptionStore.getCurrentPlan?.value)
+    } catch (err) {
+      console.error("Failed to refresh subscription:", err)
+    }
+  } else {
+    console.warn("User not authenticated, cannot refresh subscription")
+  }
+  
+  checkAuthAndSubscription()
+}
+
+// Fonction pour rafraîchir les recettes (forcer le rechargement depuis l'API)
+const refreshRecipes = async () => {
+  console.log("Forcing recipe refresh from API...");
+  await recipeStore.fetchAllRecipes(true);
+  console.log("Recipes refreshed:", recipeStore.recipes.length);
+}
+
+// Fonction pour effacer le cache des recettes
+const clearRecipeCache = () => {
+  recipeStore.clearCache();
+  console.log("Recipe cache cleared");
+}
+
+// Fonction pour basculer l'utilisation du cache
+const toggleCache = () => {
+  useCache.value = !useCache.value;
+  console.log(`Cache ${useCache.value ? 'enabled' : 'disabled'}`);
+}
+
 // Charger les données au montage du composant
 onMounted(async () => {
   console.log("Component mounted")
   
+  // Vérifier l'état d'authentification et d'abonnement
+  checkAuthAndSubscription()
+  
   // Initialiser les données d'abonnement
   if (authStore.isAuthenticated) {
-    await subscriptionStore.fetchCurrentPlan()
+    await ensureSubscriptionData();
   }
   
-  // Charger les recettes
-  await recipeStore.fetchAllRecipes()
+  // Charger les recettes (utiliser le cache si disponible)
+  await recipeStore.fetchAllRecipes(!useCache.value)
+  console.log("Recipes loaded:", recipeStore.recipes.length)
   
   // Initialiser les favoris si l'utilisateur est connecté
   if (authStore.isAuthenticated) {
     favoriteStore.initialize()
   }
+  
+  // Vérifier à nouveau après chargement complet
+  setTimeout(() => {
+    checkAuthAndSubscription()
+  }, 500)
 })
 </script>
 
 <template>
   <div class="space-y-6">
+    <!-- Debug Panel - toujours visible pour le moment -->
+    <div class="bento-card bg-yellow-50 p-4">
+      <h3 class="font-bold mb-2">Debug Panel</h3>
+      <p>Auth: {{ authStore.isAuthenticated ? 'Connecté' : 'Non connecté' }}</p>
+      <p>Subscription: {{ authStore.hasActiveSubscription ? 'Active' : 'Inactive' }}</p>
+      <p>User Role: {{ authStore.user?.role || 'Non défini' }}</p>
+      <p>Cache: {{ useCache ? 'Activé' : 'Désactivé' }}</p>
+      <div class="flex space-x-2 mt-2">
+        <button 
+          @click="refreshAuthAndSubscription" 
+          class="px-3 py-1 bg-blue-500 text-white rounded">
+          Rafraîchir Auth
+        </button>
+        <button 
+          @click="refreshRecipes" 
+          class="px-3 py-1 bg-green-500 text-white rounded">
+          Rafraîchir Recettes
+        </button>
+        <button 
+          @click="clearRecipeCache" 
+          class="px-3 py-1 bg-red-500 text-white rounded">
+          Effacer Cache
+        </button>
+        <button 
+          @click="toggleCache" 
+          class="px-3 py-1" 
+          :class="useCache ? 'bg-purple-500 text-white' : 'bg-gray-500 text-white'"
+          >
+          {{ useCache ? 'Désactiver Cache' : 'Activer Cache' }}
+        </button>
+      </div>
+    </div>
+    
     <!-- Filtres -->
     <div class="bento-card">
       <div class="flex space-x-4 overflow-x-auto pb-2">
@@ -180,6 +303,20 @@ onMounted(async () => {
             >
               Débloquer
             </router-link>
+          </div>
+          <!-- Badge Premium -->
+          <div 
+            v-if="recipe.is_premium" 
+            class="absolute top-2 left-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full"
+          >
+            Premium
+          </div>
+          <!-- Badge Cache (pour débogage) -->
+          <div 
+            v-if="recipe._fromCache" 
+            class="absolute top-2 right-12 bg-blue-500 text-white text-xs px-2 py-1 rounded-full"
+          >
+            Cache
           </div>
           <!-- Bouton favori -->
           <button
@@ -241,3 +378,4 @@ onMounted(async () => {
     </div>
   </div>
 </template>
+

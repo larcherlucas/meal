@@ -4,9 +4,11 @@ import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } fro
 import { XMarkIcon, ClockIcon, UserIcon, ChartBarIcon } from '@heroicons/vue/24/outline'
 import { useAuthStore } from '@/stores/auth'
 import { useFavoriteStore } from '@/stores/favoriteStore'
+import { useRecipeStore } from '@/stores/recipeStore'
 
 const authStore = useAuthStore()
 const favoriteStore = useFavoriteStore()
+const recipeStore = useRecipeStore()
 
 interface NutritionalInfo {
   calories: string
@@ -36,6 +38,7 @@ interface Recipe {
   instructions?: any[]
   description?: string
   is_premium?: boolean
+  _fromCache?: boolean
 }
 
 const props = defineProps<{
@@ -45,6 +48,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'close': []
+  'refresh': [recipeId: number]
 }>()
 
 const servings = ref(4)
@@ -76,6 +80,14 @@ const formattedIngredients = computed(() => {
     items: []
   }]
   
+  // Format spécifique JSONB de l'API PostgreSQL
+  if (typeof ingredients === 'object' && ingredients.ingredients && Array.isArray(ingredients.ingredients)) {
+    return [{
+      category: 'Ingrédients',
+      items: ingredients.ingredients
+    }]
+  }
+  
   if (Array.isArray(ingredients)) {
     // Si c'est un tableau simple de strings
     if (typeof ingredients[0] === 'string') {
@@ -90,14 +102,6 @@ const formattedIngredients = computed(() => {
       return [{
         category: 'Ingrédients',
         items: ingredients
-      }]
-    }
-    
-    // Si c'est un JSONB structuré
-    if (ingredients.ingredients && Array.isArray(ingredients.ingredients)) {
-      return [{
-        category: 'Ingrédients',
-        items: ingredients.ingredients
       }]
     }
   }
@@ -121,28 +125,36 @@ const formattedInstructions = computed(() => {
     return props.recipe.steps
   }
   
-  const instructions = props.recipe.steps || props.recipe.instructions
+  const steps = props.recipe.steps || props.recipe.instructions
   
-  if (!instructions) return [{
+  if (!steps) return [{
     category: 'Préparation',
     instructions: []
   }]
   
-  if (Array.isArray(instructions)) {
+  // Format spécifique JSONB de l'API PostgreSQL
+  if (typeof steps === 'object' && steps.steps && Array.isArray(steps.steps)) {
+    return [{
+      category: 'Préparation',
+      instructions: steps.steps
+    }]
+  }
+  
+  if (Array.isArray(steps)) {
     // Si c'est un tableau simple de strings
-    if (typeof instructions[0] === 'string') {
+    if (typeof steps[0] === 'string') {
       return [{
         category: 'Préparation',
-        instructions: instructions
+        instructions: steps
       }]
     }
     
     // Si c'est un tableau d'objets
-    if (typeof instructions[0] === 'object') {
-      if (instructions[0].description) {
+    if (typeof steps[0] === 'object') {
+      if (steps[0].description) {
         return [{
           category: 'Préparation',
-          instructions: instructions.sort((a, b) => a.order - b.order).map(step => step.description)
+          instructions: steps.sort((a, b) => a.order - b.order).map(step => step.description)
         }]
       }
     }
@@ -183,6 +195,20 @@ const isFavorite = computed(() => {
   if (!props.recipe) return false
   return favoriteStore.isFavorite(props.recipe.id)
 })
+
+// Fonction pour rafraîchir les données de la recette depuis l'API
+const refreshRecipeData = async () => {
+  if (!props.recipe?.id) return
+  
+  try {
+    console.log(`Rafraîchissement forcé de la recette #${props.recipe.id} depuis l'API...`)
+    const refreshedRecipe = await recipeStore.refreshRecipe(props.recipe.id)
+    emit('refresh', props.recipe.id)
+    emit('close')
+  } catch (error) {
+    console.error('Erreur lors du rafraîchissement des données de la recette:', error)
+  }
+}
 </script>
 
 <template>
@@ -240,6 +266,25 @@ const isFavorite = computed(() => {
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+                  </svg>
+                </button>
+                
+                <!-- Badge "Depuis le cache" -->
+                <div 
+                  v-if="recipe._fromCache" 
+                  class="absolute top-4 right-28 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                  Depuis le cache
+                </div>
+                
+                <!-- Bouton de rafraîchissement -->
+                <button
+                  v-if="recipe._fromCache"
+                  type="button"
+                  class="absolute top-4 right-44 rounded-full p-2 bg-green-500/90 hover:bg-green-600/90 text-white transition-colors"
+                  @click.stop="refreshRecipeData"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
                   </svg>
                 </button>
               </div>
@@ -381,6 +426,17 @@ const isFavorite = computed(() => {
                       </ol>
                     </div>
                   </div>
+                </div>
+                
+                <!-- Section de débogage temporaire -->
+                <div v-if="recipe._fromCache" class="bg-yellow-50 p-4 mt-4 text-mocha-800">
+                  <h3 class="font-bold mb-2">Informations de cache</h3>
+                  <p>Cette recette est chargée depuis le cache local.</p>
+                  <button 
+                    @click="refreshRecipeData" 
+                    class="mt-2 bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition-colors">
+                    Rafraîchir depuis l'API
+                  </button>
                 </div>
               </div>
             </DialogPanel>

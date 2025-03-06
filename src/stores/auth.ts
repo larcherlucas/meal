@@ -1,3 +1,4 @@
+// auth.ts
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiService } from '@/api/config'
@@ -25,6 +26,10 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const isVerified = ref(false)
+  const subscriptionSyncInProgress = ref(false)
+
+  // Stores
+  const notificationStore = useNotificationStore()
 
   // Initialisation du store
   const initializeUser = () => {
@@ -40,16 +45,29 @@ export const useAuthStore = defineStore('auth', () => {
     
     // Vérifier si le token est expiré côté client
     if (tokenExpiry.value && Date.now() > tokenExpiry.value) {
+      console.warn('Token expiré localement, réinitialisation de l\'état d\'authentification')
       resetAuthState()
     }
   }
 
   // Computed properties
   const isAuthenticated = computed(() => !!token.value && !!user.value)
+  
   const isAdmin = computed(() => user.value?.role === 'admin')
-  const hasActiveSubscription = computed(() => 
-    !!user.value?.subscription?.isActive
-  )
+  
+  const hasActiveSubscription = computed(() => {
+    // Vérifier l'existence d'un utilisateur et d'un abonnement
+    if (!user.value || !user.value.subscription) return false
+    
+    // Vérification directe du statut de l'abonnement
+    if (user.value.subscription.isActive === true) return true
+    
+    // Vérifier le rôle premium
+    if (user.value.role === 'premium' || user.value.role === 'admin') return true
+    
+    // Vérification supplémentaire basée sur le statut de l'abonnement
+    return user.value.subscription.status === 'active'
+  })
   
   const userPreferences = computed(() => 
     user.value?.preferences || { language: 'fr', theme: 'light' }
@@ -81,11 +99,15 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(TOKEN_EXPIRY_KEY, String(tokenExpiry.value))
     
     isVerified.value = true
+    
+    // Si l'utilisateur a un abonnement, initialiser explicitement le flag isActive
+    if (user.value.subscription && user.value.subscription.status === 'active') {
+      user.value.subscription.isActive = true
+    }
   }
 
   // Login
   async function login(credentials: LoginCredentials) {
-    const notificationStore = useNotificationStore()
     isLoading.value = true
     error.value = null
 
@@ -113,6 +135,9 @@ export const useAuthStore = defineStore('auth', () => {
       const redirectUrl = router.currentRoute.value.query.redirect as string || '/home'
       await router.push(redirectUrl)
       
+      // Synchroniser les données d'abonnement
+      await syncSubscriptionData()
+      
       return true
     } catch (err: any) {
       const errorMessage = err.message || 'Erreur de connexion'
@@ -127,7 +152,6 @@ export const useAuthStore = defineStore('auth', () => {
   
   // Inscription
   async function signup(data: SignupData) {
-    const notificationStore = useNotificationStore()
     isLoading.value = true
     error.value = null
 
@@ -178,8 +202,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Déconnexion
   async function logout(callApi = true) {
-    const notificationStore = useNotificationStore()
-    
     try {
       // Appel API de déconnexion seulement si demandé
       if (callApi && token.value) {
@@ -228,6 +250,9 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = response.user
         localStorage.setItem(USER_KEY, JSON.stringify(response.user))
         isVerified.value = true
+        
+        // Synchroniser les données d'abonnement
+        await syncSubscriptionData()
       } else {
         throw new Error('Données utilisateur non disponibles')
       }
@@ -241,45 +266,79 @@ export const useAuthStore = defineStore('auth', () => {
       isLoading.value = false
     }
   }
-// Méthode pour synchroniser manuellement les données d'abonnement
-function syncSubscriptionData() {
-  // Vérifiez que l'utilisateur existe et a un abonnement
-  if (user.value?.subscription) {
-    // Vous pouvez ajouter une logique spécifique ici si nécessaire
-    // Par exemple, vérifier la date d'expiration, le statut, etc.
-    console.log('Synchronisation des données d\'abonnement', user.value.subscription)
-    
-    // Mise à jour potentielle des informations d'abonnement
-    // Par exemple, vérifier si l'abonnement est toujours actif
-    const isStillActive = checkSubscriptionValidity(user.value.subscription)
-    
-    // Mettre à jour le statut si nécessaire
-    if (user.value.subscription.isActive !== isStillActive) {
-      user.value.subscription.isActive = isStillActive
+
+  // Méthode pour synchroniser manuellement les données d'abonnement
+  async function syncSubscriptionData() {
+    // Éviter les appels multiples simultanés
+    if (subscriptionSyncInProgress.value || !isAuthenticated.value) return
+
+    try {
+      subscriptionSyncInProgress.value = true
+      console.log('Synchronisation des données d\'abonnement...')
       
-      // Sauvegarder dans le localStorage
-      localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+      // Appel API pour obtenir les informations d'abonnement à jour
+      const response = await apiService.get<{ subscription: any }>('/subscription/status')
+      
+      if (response && response.subscription && user.value) {
+        console.log('Données d\'abonnement reçues:', response.subscription)
+        
+        // Mettre à jour les informations d'abonnement dans l'utilisateur
+        user.value.subscription = response.subscription
+        
+        // S'assurer que isActive est correctement défini
+        user.value.subscription.isActive = 
+          response.subscription.status === 'active' || 
+          user.value.role === 'premium' || 
+          user.value.role === 'admin'
+        
+        // Sauvegarder les modifications
+        localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+        
+        console.log('Statut d\'abonnement mis à jour:', user.value.subscription.isActive)
+        return true
+      }
+      
+      return false
+    } catch (err) {
+      console.error('Erreur lors de la synchronisation des données d\'abonnement:', err)
+      
+      // En cas d'erreur, conserver les données actuelles
+      // mais vérifier leur validité
+      if (user.value?.subscription) {
+        const isStillActive = checkSubscriptionValidity(user.value.subscription)
+        
+        // Mettre à jour le statut si nécessaire
+        if (user.value.subscription.isActive !== isStillActive) {
+          user.value.subscription.isActive = isStillActive
+          localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+        }
+      }
+      
+      return false
+    } finally {
+      subscriptionSyncInProgress.value = false
     }
   }
-}
 
-// Fonction utilitaire pour vérifier la validité de l'abonnement
-function checkSubscriptionValidity(subscription: any): boolean {
-  // Logique personnalisée pour vérifier la validité de l'abonnement
-  // Par exemple :
-  if (!subscription) return false
-  
-  // Vérifier la date d'expiration si présente
-  if (subscription.expirationDate) {
-    return new Date(subscription.expirationDate) > new Date()
+  // Fonction utilitaire pour vérifier la validité de l'abonnement
+  function checkSubscriptionValidity(subscription: any): boolean {
+    // Logique personnalisée pour vérifier la validité de l'abonnement
+    if (!subscription) return false
+    
+    // Vérifier le rôle de l'utilisateur
+    if (user.value?.role === 'premium' || user.value?.role === 'admin') return true
+    
+    // Vérifier la date d'expiration si présente
+    if (subscription.expirationDate) {
+      return new Date(subscription.expirationDate) > new Date()
+    }
+    
+    // Vérifier le statut
+    return subscription.status === 'active'
   }
-  
-  // Vérifier le statut
-  return subscription.status === 'active'
-}
+
   // Mise à jour du profil
   async function updateProfile(profileData: Partial<User>) {
-    const notificationStore = useNotificationStore()
     isLoading.value = true
     
     try {
@@ -327,8 +386,7 @@ function checkSubscriptionValidity(subscription: any): boolean {
     tokenExpiry,
     isLoading,
     error,
-    isVerified,  
-    syncSubscriptionData,
+    isVerified,
 
     // Computed
     isAuthenticated,
@@ -343,6 +401,7 @@ function checkSubscriptionValidity(subscription: any): boolean {
     verifyToken,
     updateProfile,
     updatePreferences,
-    updateHouseholdMembers
+    updateHouseholdMembers,
+    syncSubscriptionData
   }
 })

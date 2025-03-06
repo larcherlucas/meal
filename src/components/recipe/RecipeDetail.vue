@@ -1,6 +1,19 @@
 <template>
   <div class="max-w-4xl mx-auto">
     <div class="bento-card space-y-8">
+      <!-- Badge cache (pour visualisation en débogage) -->
+      <div v-if="recipe._fromCache" class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full inline-flex items-center text-sm mb-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z" />
+        </svg>
+        Chargée depuis le cache
+        <button 
+          @click="refreshRecipe"
+          class="ml-2 bg-blue-500 text-white rounded-full px-2 py-0.5 text-xs hover:bg-blue-600 transition-colors">
+          Rafraîchir
+        </button>
+      </div>
+
       <!-- Image -->
       <div class="relative aspect-video rounded-lg overflow-hidden">
         <img 
@@ -90,6 +103,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRecipeStore } from '@/stores/recipeStore'
+
+const recipeStore = useRecipeStore()
 
 interface Ingredient {
   name: string
@@ -108,11 +124,14 @@ interface Recipe {
   steps?: string[] | any
   instructions?: any[]
   video?: string
+  _fromCache?: boolean
 }
 
 const props = defineProps<{
   recipe: Recipe
 }>()
+
+const emit = defineEmits(['refresh'])
 
 const servings = ref(4)
 const availableServings = [2, 4, 6, 8]
@@ -209,5 +228,17 @@ const getScaledQuantity = (quantity: number) => {
   const recipeServings = props.recipe.servings || 4;
   const scale = servings.value / recipeServings;
   return Math.round((quantity * scale) * 10) / 10;
+};
+
+// Méthode pour rafraîchir les données de la recette depuis l'API
+const refreshRecipe = async () => {
+  if (!props.recipe.id) return;
+  
+  try {
+    await recipeStore.refreshRecipe(props.recipe.id);
+    emit('refresh');
+  } catch (error) {
+    console.error('Erreur lors du rafraîchissement de la recette:', error);
+  }
 };
 </script>
