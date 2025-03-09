@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
-import { XMarkIcon, ClockIcon, UserIcon, ChartBarIcon } from '@heroicons/vue/24/outline'
+import { XMarkIcon, ClockIcon, UserIcon, ChartBarIcon, PencilIcon, TrashIcon, DocumentDuplicateIcon, InformationCircleIcon } from '@heroicons/vue/24/outline'
 import { useAuthStore } from '@/stores/auth'
 import { useFavoriteStore } from '@/stores/favoriteStore'
 import { useRecipeStore } from '@/stores/recipeStore'
+import { useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
 const favoriteStore = useFavoriteStore()
 const recipeStore = useRecipeStore()
+const router = useRouter()
 
 interface NutritionalInfo {
   calories: string
@@ -39,20 +41,28 @@ interface Recipe {
   description?: string
   is_premium?: boolean
   _fromCache?: boolean
+  status?: string
+  created_at?: string
+  updated_at?: string
 }
 
 const props = defineProps<{
   isOpen: boolean
   recipe: Recipe | null
+  isAdmin?: boolean
 }>()
 
 const emit = defineEmits<{
   'close': []
   'refresh': [recipeId: number]
+  'edit': [event: MouseEvent]
+  'delete': [event: MouseEvent]
+  'duplicate': [event: MouseEvent]
 }>()
 
 const servings = ref(4)
 const availableServings = [2, 4, 6, 8]
+const showAdminInfo = ref(false)
 
 // Calculer le temps total de préparation
 const totalTime = computed(() => {
@@ -209,6 +219,54 @@ const refreshRecipeData = async () => {
     console.error('Erreur lors du rafraîchissement des données de la recette:', error)
   }
 }
+
+// Fonctions d'administration
+const handleEdit = (event) => {
+  emit('edit', event)
+  emit('close')
+}
+
+const handleDelete = (event) => {
+  if (confirm(`Êtes-vous sûr de vouloir supprimer la recette "${props.recipe?.title}" ?`)) {
+    emit('delete', event)
+    emit('close')
+  }
+}
+
+const handleDuplicate = async (event) => {
+  if (!props.recipe) return
+  
+  try {
+    // Copier la recette en changeant son titre
+    const duplicatedRecipe = { 
+      ...props.recipe,
+      title: `Copie de ${props.recipe.title}`,
+      id: undefined // Supprimer l'ID pour que le backend en attribue un nouveau
+    }
+    
+    const newRecipe = await recipeStore.createRecipe(duplicatedRecipe)
+    emit('close')
+    
+    // Rediriger vers la page d'édition de la nouvelle recette
+    router.push(`/recipes/${newRecipe.id}/edit`)
+  } catch (error) {
+    console.error('Erreur lors de la duplication de la recette:', error)
+  }
+}
+
+// Formatter les dates
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A'
+  
+  const date = new Date(dateString)
+  return date.toLocaleDateString('fr-FR', { 
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 </script>
 
 <template>
@@ -241,6 +299,75 @@ const refreshRecipeData = async () => {
               v-if="recipe" 
               class="w-full max-w-4xl transform overflow-hidden rounded-2xl bg-white dark:bg-mocha-800 shadow-xl transition-all"
             >
+              <!-- Barre d'actions administratives (admin uniquement) -->
+              <div v-if="isAdmin" class="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 py-3 px-4 flex justify-between items-center">
+                <div class="flex items-center">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    ID: {{ recipe.id }}
+                  </span>
+                  <button
+                    @click="showAdminInfo = !showAdminInfo"
+                    class="ml-3 p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full"
+                    :class="{ 'bg-blue-100 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400': showAdminInfo }"
+                  >
+                    <InformationCircleIcon class="h-5 w-5" />
+                  </button>
+                </div>
+                
+                <div class="flex space-x-2">
+                  <button
+                    @click="handleEdit($event)"
+                    class="inline-flex items-center px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                  >
+                    <PencilIcon class="h-4 w-4 mr-1" />
+                    Modifier
+                  </button>
+                  
+                  <button
+                    @click="handleDuplicate($event)"
+                    class="inline-flex items-center px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                  >
+                    <DocumentDuplicateIcon class="h-4 w-4 mr-1" />
+                    Dupliquer
+                  </button>
+                  
+                  <button
+                    @click="handleDelete($event)"
+                    class="inline-flex items-center px-3 py-1.5 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                  >
+                    <TrashIcon class="h-4 w-4 mr-1" />
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Informations administratives détaillées -->
+              <div v-if="isAdmin && showAdminInfo" class="bg-blue-50 dark:bg-blue-900/20 p-4 text-sm border-b border-blue-100 dark:border-blue-800">
+                <h4 class="font-semibold text-blue-800 dark:text-blue-200 mb-2">Informations administratives</h4>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <p class="text-gray-600 dark:text-gray-400">ID: <span class="font-medium text-gray-800 dark:text-gray-200">{{ recipe.id }}</span></p>
+                    <p class="text-gray-600 dark:text-gray-400">Statut: 
+                      <span class="font-medium px-2 py-0.5 rounded-full text-xs" 
+                        :class="{
+                          'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200': recipe.status === 'published',
+                          'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200': recipe.status === 'draft',
+                          'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200': recipe.status === 'review'
+                        }">
+                        {{ recipe.status === 'published' ? 'Publié' : 
+                           recipe.status === 'draft' ? 'Brouillon' : 
+                           recipe.status === 'review' ? 'En révision' : 
+                           recipe.status || 'Publié' }}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <p class="text-gray-600 dark:text-gray-400">Créé le: <span class="font-medium text-gray-800 dark:text-gray-200">{{ formatDate(recipe.created_at) }}</span></p>
+                    <p class="text-gray-600 dark:text-gray-400">Modifié le: <span class="font-medium text-gray-800 dark:text-gray-200">{{ formatDate(recipe.updated_at) }}</span></p>
+                  </div>
+                </div>
+              </div>
+              
               <!-- Image de couverture -->
               <div class="relative aspect-video">
                 <img 
@@ -426,6 +553,33 @@ const refreshRecipeData = async () => {
                       </ol>
                     </div>
                   </div>
+                </div>
+                
+                <!-- Actions administratives en bas de modal -->
+                <div v-if="isAdmin" class="flex justify-end space-x-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button 
+                    @click="handleEdit($event)"
+                    class="px-4 py-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded"
+                  >
+                    <PencilIcon class="h-5 w-5 inline-block mr-1" />
+                    Modifier
+                  </button>
+                  
+                  <button 
+                    @click="handleDuplicate($event)"
+                    class="px-4 py-2 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30 rounded"
+                  >
+                    <DocumentDuplicateIcon class="h-5 w-5 inline-block mr-1" />
+                    Dupliquer
+                  </button>
+                  
+                  <button 
+                    @click="handleDelete($event)"
+                    class="px-4 py-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded"
+                  >
+                    <TrashIcon class="h-5 w-5 inline-block mr-1" />
+                    Supprimer
+                  </button>
                 </div>
                 
                 <!-- Section de débogage temporaire -->

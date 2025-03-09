@@ -1,5 +1,3 @@
-// src/api/config.ts
-
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/NotificationStore'

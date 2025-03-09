@@ -5,19 +5,22 @@ import { useRecipeStore } from '@/stores/recipeStore'
 import { useSubscriptionStore } from '@/stores/subscription'
 import { useFavoriteStore } from '@/stores/favoriteStore'
 import RecipeModal from '@/components/recipe/RecipeModal.vue'
-import { HeartIcon } from '@heroicons/vue/24/outline'
+import { HeartIcon, PencilIcon, TrashIcon, PlusIcon, EllipsisVerticalIcon } from '@heroicons/vue/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
+import { useRouter } from 'vue-router' // Importé pour la navigation
 
 const authStore = useAuthStore()
 const recipeStore = useRecipeStore()
 const subscriptionStore = useSubscriptionStore()
 const favoriteStore = useFavoriteStore()
+const router = useRouter() // Pour la navigation
 
 // État local
 const selectedCategory = ref('Toutes')
 const selectedRecipe = ref(null)
 const isModalOpen = ref(false)
 const useCache = ref(true) // Nouvel état pour activer/désactiver le cache
+const showActionMenu = ref(null) // ID de la recette pour laquelle afficher le menu d'actions
 
 // Catégories pour le filtre
 const categories = computed(() => ['Toutes', 'Petit-déjeuner', 'Déjeuner', 'Dîner', 'Dessert', 'En-cas'])
@@ -31,6 +34,9 @@ const categoryToMealType = {
   'Dessert': 'dessert',
   'En-cas': 'snack'
 }
+
+// Vérifier si l'utilisateur est admin
+const isAdmin = computed(() => authStore.user?.role === 'admin')
 
 // Fonction de débogage de l'état d'authentification et d'abonnement
 function checkAuthAndSubscription() {
@@ -64,8 +70,8 @@ const filteredRecipes = computed(() => {
   console.log("Current subscription status:", authStore.hasActiveSubscription)
   console.log("Premium recipes count:", recipes.filter(r => r.is_premium).length)
 
-  // Filtrer par abonnement
-  if (!authStore.hasActiveSubscription) {
+  // Filtrer par abonnement (sauf pour les admins)
+  if (!authStore.hasActiveSubscription && !isAdmin.value) {
     recipes = recipes.filter(recipe => !recipe.is_premium)
   }
 
@@ -186,6 +192,46 @@ const toggleCache = () => {
   console.log(`Cache ${useCache.value ? 'enabled' : 'disabled'}`);
 }
 
+// Nouvelles fonctions d'administration
+const createRecipe = () => {
+  router.push('/recipes/create');
+}
+
+const editRecipe = (recipe, event) => {
+  event.stopPropagation();
+  router.push(`/recipes/${recipe.id}/edit`);
+}
+
+const deleteRecipe = async (recipe, event) => {
+  event.stopPropagation();
+  if (confirm(`Êtes-vous sûr de vouloir supprimer la recette "${recipe.title}" ?`)) {
+    try {
+      await recipeStore.deleteRecipe(recipe.id);
+      refreshRecipes();
+    } catch (error) {
+      console.error('Erreur lors de la suppression de la recette:', error);
+    }
+  }
+}
+
+// Fonction pour gérer le menu d'action (clic sur les trois points)
+const toggleActionMenu = (recipeId, event) => {
+  event.stopPropagation();
+  showActionMenu.value = showActionMenu.value === recipeId ? null : recipeId;
+}
+
+// Fermer le menu d'action si on clique ailleurs
+const closeActionMenu = () => {
+  showActionMenu.value = null;
+}
+
+// Fonction pour gérer la fermeture de la modale et les actions additionnelles
+const handleModalClose = () => {
+  isModalOpen.value = false;
+  // Si des modifications ont été apportées, refreshRecipes
+  refreshRecipes();
+}
+
 // Charger les données au montage du composant
 onMounted(async () => {
   console.log("Component mounted")
@@ -207,6 +253,9 @@ onMounted(async () => {
     favoriteStore.initialize()
   }
   
+  // Fermer le menu d'action au clic en dehors
+  document.addEventListener('click', closeActionMenu);
+  
   // Vérifier à nouveau après chargement complet
   setTimeout(() => {
     checkAuthAndSubscription()
@@ -215,7 +264,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6" @click="closeActionMenu">
     <!-- Debug Panel - toujours visible pour le moment -->
     <div class="bento-card bg-yellow-50 p-4">
       <h3 class="font-bold mb-2">Debug Panel</h3>
@@ -293,7 +342,7 @@ onMounted(async () => {
             class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
           />
           <div
-            v-if="recipe.is_premium && !authStore.hasActiveSubscription"
+            v-if="recipe.is_premium && !authStore.hasActiveSubscription && !isAdmin"
             class="absolute inset-0 bg-black/50 flex items-center justify-center"
           >
             <router-link
@@ -304,22 +353,103 @@ onMounted(async () => {
               Débloquer
             </router-link>
           </div>
-          <!-- Badge Premium -->
-          <div 
-            v-if="recipe.is_premium" 
-            class="absolute top-2 left-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full"
-          >
-            Premium
+          
+          <!-- Badges -->
+          <div class="absolute top-2 left-2 flex flex-wrap gap-1">
+            <!-- Badge Premium -->
+            <div 
+              v-if="recipe.is_premium" 
+              class="bg-amber-500 text-white text-xs px-2 py-1 rounded-full"
+            >
+              Premium
+            </div>
+            
+            <!-- Badge de statut (nouveau) -->
+            <div 
+              v-if="recipe.status" 
+              class="text-white text-xs px-2 py-1 rounded-full"
+              :class="{
+                'bg-green-500': recipe.status === 'published',
+                'bg-yellow-500': recipe.status === 'draft',
+                'bg-blue-500': recipe.status === 'review'
+              }"
+            >
+              {{ recipe.status === 'published' ? 'Publié' : 
+                 recipe.status === 'draft' ? 'Brouillon' : 
+                 recipe.status === 'review' ? 'En révision' : recipe.status }}
+            </div>
+            
+            <!-- Badge New (si ajouté récemment) -->
+            <div 
+              v-if="recipe.created_at && new Date(recipe.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)" 
+              class="bg-pink-500 text-white text-xs px-2 py-1 rounded-full"
+            >
+              Nouveau
+            </div>
+            
+            <!-- Badge Cache (pour débogage) -->
+            <div 
+              v-if="recipe._fromCache" 
+              class="bg-blue-500 text-white text-xs px-2 py-1 rounded-full"
+            >
+              Cache
+            </div>
           </div>
-          <!-- Badge Cache (pour débogage) -->
-          <div 
-            v-if="recipe._fromCache" 
-            class="absolute top-2 right-12 bg-blue-500 text-white text-xs px-2 py-1 rounded-full"
-          >
-            Cache
+          
+          <!-- Actions pour admin -->
+          <div v-if="isAdmin" class="absolute top-2 right-2 flex space-x-1">
+            <!-- Menu contextuel admin (trois points) -->
+            <button
+              @click="toggleActionMenu(recipe.id, $event)"
+              class="p-2 rounded-full bg-white/80 hover:bg-white transition-colors"
+            >
+              <EllipsisVerticalIcon class="h-5 w-5 text-gray-700" />
+            </button>
+            
+            <!-- Menu déroulant d'actions -->
+            <div 
+              v-if="showActionMenu === recipe.id"
+              class="absolute right-0 top-10 z-10 bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden"
+              @click.stop
+            >
+              <div class="py-1">
+                <button 
+                  @click="editRecipe(recipe, $event)"
+                  class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                >
+                  <PencilIcon class="h-4 w-4 mr-2" />
+                  Modifier
+                </button>
+                
+                <button 
+                  @click="deleteRecipe(recipe, $event)"
+                  class="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                >
+                  <TrashIcon class="h-4 w-4 mr-2" />
+                  Supprimer
+                </button>
+              </div>
+            </div>
+            
+            <!-- Bouton favori (à côté du menu) -->
+            <button
+              @click="toggleFavorite(recipe.id, $event)"
+              class="p-2 rounded-full bg-white/80 hover:bg-white transition-colors ml-1"
+            >
+              <HeartSolidIcon
+                v-if="isFavorite(recipe.id)"
+                class="h-5 w-5 text-red-500"
+              />
+              <HeartIcon
+                v-else
+                class="h-5 w-5 text-gray-500"
+              />
+            </button>
           </div>
-          <!-- Bouton favori -->
+          
+          <!-- Bouton favori pour les non-admins -->
           <button
+            v-else
             @click="toggleFavorite(recipe.id, $event)"
             class="absolute top-2 right-2 p-2 rounded-full bg-white/80 hover:bg-white transition-colors"
           >
@@ -351,16 +481,19 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Modal de recette -->
+    <!-- Modal de recette avec passage des props admin -->
     <RecipeModal
       :is-open="isModalOpen"
       :recipe="selectedRecipe"
-      @close="isModalOpen = false"
+      :is-admin="isAdmin"
+      @close="handleModalClose"
+      @edit="editRecipe(selectedRecipe, $event)"
+      @delete="deleteRecipe(selectedRecipe, $event)"
     />
 
-    <!-- CTA Abonnement -->
+    <!-- CTA Abonnement (ne pas afficher pour les admins) -->
     <div
-      v-if="!authStore.hasActiveSubscription"
+      v-if="!authStore.hasActiveSubscription && !isAdmin"
       class="bento-card bg-gradient-to-r text-white text-center"
       style="background-color: rgba(86, 122, 94, 1);"
     >
@@ -376,6 +509,16 @@ onMounted(async () => {
         Voir les abonnements
       </router-link>
     </div>
+    
+    <!-- Bouton flottant "Ajouter une recette" (admin uniquement) -->
+    <div v-if="isAdmin" class="fixed bottom-6 right-6 z-10">
+      <button
+        @click="createRecipe"
+        class="w-14 h-14 rounded-full bg-mocha-600 text-white flex items-center justify-center shadow-lg hover:bg-mocha-700 transition-colors"
+        title="Ajouter une recette"
+      >
+        <PlusIcon class="h-8 w-8" />
+      </button>
+    </div>
   </div>
 </template>
-
