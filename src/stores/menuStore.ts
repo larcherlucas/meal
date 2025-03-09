@@ -3,26 +3,45 @@ import { ref, computed } from 'vue'
 import { apiService } from '@/api/config'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/NotificationStore'
-import type { Recipe } from '@/types/index'
 
+// Types mis à jour pour correspondre à la réponse du backend
 export interface MenuRecipe {
-  id: number
-  recipeId: number
-  dayOfWeek: number // 0-6 pour dim-sam
-  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack'
-  recipe?: Recipe // Référence complète à la recette si chargée
+  title: string
+  servings: number
+  cook_time: number
+  image_url: string
+  prep_time: number
+  recipe_id: number
+  is_favorite: boolean
+  difficulty_level: 'easy' | 'medium' | 'hard'
+}
+
+export interface MealSchedule {
+  [key: string]: {
+    breakfast?: MenuRecipe | null
+    lunch?: MenuRecipe | null
+    dinner?: MenuRecipe | null
+    snack?: MenuRecipe | null
+  }
 }
 
 export interface Menu {
   id: number
-  name: string
-  startDate: string
-  endDate: string
-  menuRecipes: MenuRecipe[]
-  isActive: boolean
-  createdAt: string
-  updatedAt: string
-  servingsCount?: number
+  user_id: number
+  meal_schedule: MealSchedule
+  menu_type: 'weekly' | 'monthly'
+  status: 'active' | 'archived' | 'draft'
+  is_customized: boolean
+  family_size: number
+  generated_options: {
+    meal_types: ('breakfast' | 'lunch' | 'dinner' | 'snack')[]
+    generated_at: string
+    dietary_restrictions: string[]
+    excluded_ingredients: string[]
+  }
+  generated_at: string
+  valid_from: string
+  valid_to: string
 }
 
 export interface GenerateMenuParams {
@@ -48,7 +67,7 @@ export const useMenuStore = defineStore('menu', () => {
   // Computed property pour filtrer les menus par date
   const sortedMenus = computed(() => {
     return [...menus.value].sort((a, b) => 
-      new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+      new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime()
     )
   })
   
@@ -57,7 +76,7 @@ export const useMenuStore = defineStore('menu', () => {
     return authStore.hasActiveSubscription
   })
   
-  // Ajoutez cette méthode de débogage
+  // Méthode de débogage
   function debugStoreState() {
     console.log('Store state:', {
       activeMenu: activeMenu.value,
@@ -108,7 +127,7 @@ export const useMenuStore = defineStore('menu', () => {
       error.value = null
       const response = await apiService.menus.getById(id)
       // Si c'est le menu actif, mettre à jour la référence
-      if (response.data.isActive) {
+      if (response.data.status === 'active') {
         activeMenu.value = response.data
       }
       
@@ -162,7 +181,6 @@ export const useMenuStore = defineStore('menu', () => {
       debugStoreState()
     }
   }
-
 
   async function createMenu(menuData: Partial<Menu>) {
     if (isLoading.value) return null
@@ -355,42 +373,51 @@ export const useMenuStore = defineStore('menu', () => {
         }
       }
       
-      // ATTENTION: Strictement limité aux champs validés par le schéma Joi
-      // weeklyMenuSchema = Joi.object({
-      //   type: Joi.string().valid('weekly', 'monthly').required(),
-      //   meal_schedule: Joi.object().required(),
-      //   status: Joi.string().valid('active', 'archived', 'draft').default('active'),
-      //   is_customized: Joi.boolean().default(false),
-      //   valid_from: Joi.date().iso().required(),
-      //   valid_to: Joi.date().iso().greater(Joi.ref('valid_from')).required()
-      // }).required();
+      // Format des paramètres optimisé pour correspondre au backend
       const apiParams = {
         type: params.type === 'week' ? 'weekly' : 'monthly',
         meal_schedule: mealSchedule,
         valid_from: validFrom,
-        valid_to: validTo
-        // Les champs status et is_customized ont des valeurs par défaut dans le schéma
+        valid_to: validTo,
+        family_size: params.preferences.servingsCount || 4,
+        user_preferences: {
+          excludedIngredients: params.preferences.excludedIngredients || [],
+          dietaryRestrictions: params.preferences.dietaryRestrictions || [],
+          mealTypes: params.preferences.mealTypes || ['breakfast', 'lunch', 'dinner']
+        }
       }
       
-      console.log('Paramètres API convertis:', apiParams)
+      console.log('Paramètres API pour génération de menu:', apiParams)
       
       const response = await apiService.menus.generateMenu(apiParams)
-      generatedMenu.value = response.data
       
-      // Ajouter le menu généré à la liste des menus
-      menus.value.push(response.data)
+      // Vérifier la structure de la réponse
+      console.log('Réponse brute API de génération de menu:', response)
       
-      notificationStore.show({
-        type: 'success',
-        message: 'Menu généré avec succès'
-      })
-      
-      return response.data
+      if (response && response.data) {
+        console.log('Données du menu généré:', response.data)
+        console.log('ID du menu généré:', response.data.id)
+        
+        generatedMenu.value = response.data
+        
+        // Ajouter le menu généré à la liste des menus
+        menus.value.push(response.data)
+        
+        notificationStore.show({
+          type: 'success',
+          message: 'Menu généré avec succès'
+        })
+        
+        return response.data
+      } else {
+        console.error('Réponse API incomplète pour la génération de menu:', response)
+        throw new Error('Format de réponse incorrect du serveur')
+      }
     } catch (err: any) {
       error.value = 'Erreur lors de la génération du menu'
-      console.error('Erreur generateMenu:', err)
+      console.error('Erreur generateMenu détaillée:', err)
       
-      if (err.response && err.response.status === 403) {
+      if (err.status === 403) {
         notificationStore.show({
           type: 'warning',
           message: 'Cette fonctionnalité nécessite un abonnement actif'
@@ -398,7 +425,7 @@ export const useMenuStore = defineStore('menu', () => {
       } else {
         notificationStore.show({
           type: 'error',
-          message: 'Impossible de générer le menu'
+          message: err.message || 'Impossible de générer le menu'
         })
       }
       

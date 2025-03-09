@@ -67,6 +67,7 @@ api.interceptors.request.use(
       config.headers['Accept-Language'] = authStore.user.preferences.language
     }
     
+    console.log(`Request to ${config.url}:`, config.data);
     return config
   },
   (error) => Promise.reject(error)
@@ -236,7 +237,9 @@ api.interceptors.response.use(
 // Méthodes utilitaires génériques avec typage fort
 export const apiService = {
   get: async <T>(url: string, params?: unknown): Promise<T> => {
+    console.log(`API Service - GET ${url} avec params:`, params)
     const response = await api.get<ApiSuccessResponse<T>>(url, { params })
+    console.log(`API Service - Réponse GET ${url}:`, response)
     return (response as unknown as ApiSuccessResponse<T>).data
   },
   
@@ -299,7 +302,28 @@ export const apiService = {
     },
     
     generateMenu: async (params: any) => {
-      return apiService.post('/weekly-menus/generate', params)
+      console.log('API Service - Envoi de requête generateMenu avec params:', params)
+      try {
+        const response = await api.post('/weekly-menus/generate', params)
+        console.log('API Service - Réponse generateMenu brute:', response)
+        
+        // Vérification supplémentaire pour s'assurer qu'on a bien les données
+        if (response && response.data) {
+          console.log('API Service - Menu généré avec succès, données:', response.data)
+          return response.data
+        } 
+        else if (response && response.status === 'success' && response.data) {
+          console.log('API Service - Menu généré avec succès (format 2):', response.data)
+          return response.data
+        }
+        else {
+          console.warn('API Service - Format de réponse inattendu:', response)
+          throw new Error('Format de réponse inattendu du serveur')
+        }
+      } catch (error) {
+        console.error('API Service - Erreur lors de la génération du menu:', error)
+        throw error
+      }
     }
   },
   
@@ -323,25 +347,63 @@ export const apiService = {
   },
   
   post: async <T>(url: string, data?: unknown): Promise<T> => {
+    console.log(`API Service - POST ${url} avec données:`, data)
     const response = await api.post<ApiSuccessResponse<T>>(url, data)
-    return (response as unknown as ApiSuccessResponse<T>).data
+    console.log(`API Service - Réponse POST ${url}:`, response)
+    
+    // Gestion plus robuste des différents formats de réponse possibles
+    if (response && typeof response === 'object') {
+      // Cas 1: La réponse est déjà au format attendu
+      if ('data' in response) {
+        return response.data
+      }
+      
+      // Cas 2: La réponse est déjà les données que nous voulons
+      if ('id' in response) {
+        return response as unknown as T
+      }
+    }
+    
+    // Par défaut, retourner la réponse telle quelle
+    return response as unknown as T
   },
   
   put: async <T>(url: string, data?: unknown): Promise<T> => {
+    console.log(`API Service - PUT ${url} avec données:`, data)
     const response = await api.put<ApiSuccessResponse<T>>(url, data)
-    return (response as unknown as ApiSuccessResponse<T>).data
+    console.log(`API Service - Réponse PUT ${url}:`, response)
+    
+    // Même logique de déballage que pour post
+    if (response && typeof response === 'object' && 'data' in response) {
+      return response.data
+    }
+    return response as unknown as T
   },
   
   patch: async <T>(url: string, data?: unknown): Promise<T> => {
     const cleanUrl = url.startsWith('/api/v1') ? url.replace('/api/v1', '') : url;
     
+    console.log(`API Service - PATCH ${cleanUrl} avec données:`, data)
     const response = await api.patch<ApiSuccessResponse<T>>(cleanUrl, data)
-    return (response as unknown as ApiSuccessResponse<T>).data
+    console.log(`API Service - Réponse PATCH ${cleanUrl}:`, response)
+    
+    // Même logique de déballage que pour post
+    if (response && typeof response === 'object' && 'data' in response) {
+      return response.data
+    }
+    return response as unknown as T
   },
   
   delete: async <T>(url: string): Promise<T> => {
+    console.log(`API Service - DELETE ${url}`)
     const response = await api.delete<ApiSuccessResponse<T>>(url)
-    return (response as unknown as ApiSuccessResponse<T>).data
+    console.log(`API Service - Réponse DELETE ${url}:`, response)
+    
+    // Même logique de déballage que pour post
+    if (response && typeof response === 'object' && 'data' in response) {
+      return response.data
+    }
+    return response as unknown as T
   }
 }
 

@@ -13,33 +13,35 @@ export interface AuthResponse {
 
 // User Types
 export interface User {
-  id: string
+  id: number
   email: string
   username: string
-  role: 'admin' | 'user'
+  role: 'admin' | 'user' | 'premium'
   household_members?: HouseholdComposition
   subscription?: Subscription
   preferences?: UserPreferences
-  createdAt?: string
-  updatedAt?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Subscription {
+  type: string | null
   isActive: boolean
-  plan: string | null
-  status: 'active' | 'inactive' | 'cancelled' | 'expired'
+  status: 'active' | 'inactive' | 'cancelled' | 'expired' | 'pending'
   startDate?: string
-  expiresAt?: string
-  nextBillingDate?: string
+  endDate?: string
 }
 
 export interface UserPreferences {
-  language: 'fr' | 'en'
-  theme: 'light' | 'dark'
+  language?: 'fr' | 'en'
+  theme?: 'light' | 'dark'
   notifications?: {
     email: boolean
     app: boolean
   }
+  defaultServings?: number
+  dietaryRestrictions?: string[]
+  excludedIngredients?: string[]
 }
 
 export interface HouseholdComposition {
@@ -61,48 +63,84 @@ export interface SignupData {
 
 // Menu Types
 export interface Menu {
-  id: string
-  userId: string
-  name: string
-  startDate: string
-  endDate: string
-  meals: Meal[]
-  createdAt: string
-  updatedAt: string
+  id: number
+  user_id: number
+  meal_schedule: MealSchedule
+  menu_type: 'weekly' | 'monthly'
+  status: 'active' | 'archived' | 'draft'
+  is_customized: boolean
+  family_size: number
+  generated_options: {
+    meal_types: ('breakfast' | 'lunch' | 'dinner' | 'snack')[]
+    generated_at: string
+    dietary_restrictions: string[]
+    excluded_ingredients: string[]
+  }
+  generated_at: string
+  valid_from: string
+  valid_to: string
 }
 
-export interface Meal {
-  id: string
-  menuId: string
-  day: number
-  period: 'breakfast' | 'lunch' | 'dinner' | 'snack'
-  recipes: Recipe[]
+export interface MealSchedule {
+  [key: string]: {
+    breakfast?: MenuRecipe | null
+    lunch?: MenuRecipe | null
+    dinner?: MenuRecipe | null
+    snack?: MenuRecipe | null
+  }
 }
 
-export interface Recipe {
-  id: string
-  name: string
-  description: string
-  preparationTime: number
-  cookingTime: number
+export interface MenuRecipe {
+  title: string
   servings: number
-  difficulty: 'easy' | 'medium' | 'hard'
-  ingredients: Ingredient[]
-  steps: string[]
-  tags: string[]
-  dietaryRestrictions: DietaryRestriction[]
-  imageUrl?: string
+  cook_time: number
+  image_url: string
+  prep_time: number
+  recipe_id: number
+  is_favorite: boolean
+  difficulty_level: 'easy' | 'medium' | 'hard'
+}
+
+// Recipe Types
+export interface Recipe {
+  id: number
+  title: string
+  description: string
+  ingredients: any // À adapter selon la structure exacte reçue du backend
+  steps: any // À adapter selon la structure exacte reçue du backend
+  prep_time: number
+  cook_time: number
+  servings: number
+  difficulty_level: 'easy' | 'medium' | 'hard'
+  meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'
+  image_url?: string
+  is_premium?: boolean
+  category?: string
+  origin?: string
+  season?: string
+  rating?: number
+  author_id?: number
+  author_email?: string
+  favorite_count?: string
+  average_rating?: string
 }
 
 export interface Ingredient {
-  id: string
+  id: string | number
   name: string
   quantity: number
   unit: string
+  optional?: boolean
+}
+
+export interface Step {
+  order: number
+  description: string
+  duration?: number
 }
 
 export interface DietaryRestriction {
-  id: string
+  id: string | number
   name: string
   description?: string
 }
@@ -120,9 +158,36 @@ export interface ProfileUpdateData {
 // Notification Types
 export interface Notification {
   id: string
-  type: 'success' | 'error' | 'info' | 'warn'
+  type: 'success' | 'error' | 'info' | 'warning'
   title: string
   message: string
   timestamp: number
   read: boolean
+  duration?: number
+}
+
+// Génération de menu
+export interface GenerateMenuParams {
+  type: 'week' | 'month'
+  preferences: {
+    excludedIngredients?: string[]
+    dietaryRestrictions?: string[]
+    mealTypes?: ('breakfast' | 'lunch' | 'dinner' | 'snack')[]
+    servingsCount?: number
+  }
+}
+
+// API Response Types
+export interface ApiSuccessResponse<T> {
+  status: 'success'
+  data: T
+  message?: string
+  totalCount?: number
+  subscription?: any
+}
+
+export interface ApiErrorResponse {
+  error: string
+  status?: number
+  errors?: Record<string, string>
 }

@@ -229,23 +229,79 @@ async function generateMenu() {
 
   try {
     console.log('Génération du menu avec paramètres:', params)
-    const generatedMenu = await menuStore.generateMenu(params)
     
-    if (generatedMenu) {
-      console.log('Menu généré avec succès:', generatedMenu)
+    // Appel au store pour générer le menu
+    const result = await menuStore.generateMenu(params)
+    console.log('Résultat complet de la génération:', result)
+    
+    // Examiner en détail la structure de l'objet reçu
+    if (result) {
+      console.log('Type de result:', typeof result)
+      console.log('Propriétés de result:', Object.keys(result))
       
-      // Rediriger vers la vue du menu généré avec les paramètres utilisés
-      router.push({
-        path: `/menus/${generatedMenu.id}`,
-        query: {
-          servings: servingsCount.value.toString(),
-          restrictions: dietaryRestrictions.value.join(','),
-          excluded: excludedIngredients.value.join(',')
+      // Vérifier si le résultat est un objet non null
+      if (typeof result === 'object' && result !== null) {
+        console.log('Result a-t-il une propriété id?', 'id' in result)
+        
+        // Cas 1: L'ID est directement dans le résultat
+        if ('id' in result) {
+          console.log('ID trouvé directement dans result:', result.id)
+          router.push({
+            path: `/menus/${result.id}`,
+            query: {
+              servings: servingsCount.value.toString(),
+              restrictions: dietaryRestrictions.value.join(','),
+              excluded: excludedIngredients.value.join(',')
+            }
+          })
+          return
         }
-      })
-    } else {
-      console.warn('Menu généré mais aucun ID retourné')
+        
+        // Cas 2: L'ID est dans result.data
+        console.log('Result a-t-il une propriété data?', 'data' in result)
+        if ('data' in result && result.data) {
+          console.log('Propriétés de result.data:', Object.keys(result.data))
+          console.log('result.data a-t-il une propriété id?', 'id' in result.data)
+          
+          if ('id' in result.data) {
+            console.log('ID trouvé dans result.data:', result.data.id)
+            router.push({
+              path: `/menus/${result.data.id}`,
+              query: {
+                servings: servingsCount.value.toString(),
+                restrictions: dietaryRestrictions.value.join(','),
+                excluded: excludedIngredients.value.join(',')
+              }
+            })
+            return
+          }
+        }
+      }
     }
+    
+    // Vérifier le menu généré stocké dans le store
+    if (menuStore.generatedMenu) {
+      console.log('Menu généré dans store:', menuStore.generatedMenu)
+      if (menuStore.generatedMenu.id) {
+        console.log('ID trouvé dans menuStore.generatedMenu:', menuStore.generatedMenu.id)
+        router.push({
+          path: `/menus/${menuStore.generatedMenu.id}`,
+          query: {
+            servings: servingsCount.value.toString(),
+            restrictions: dietaryRestrictions.value.join(','),
+            excluded: excludedIngredients.value.join(',')
+          }
+        })
+        return
+      }
+    }
+    
+    // Si on n'a pas trouvé d'ID valide malgré la génération réussie
+    console.warn('Menu généré mais ID non trouvé')
+    notificationStore.show({
+      type: 'info',
+      message: 'Menu généré, mais impossible d\'accéder au détail pour le moment.'
+    })
   } catch (error) {
     console.error('Erreur lors de la génération du menu:', error)
     notificationStore.show({
