@@ -1,7 +1,10 @@
+// src/api/config.ts
+
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/NotificationStore'
 import router from '@/router'
+import type { LoginCredentials, AuthResponse, SignupData } from '@/types'
 
 // Types pour les réponses API standardisées
 export interface ApiSuccessResponse<T> {
@@ -241,6 +244,36 @@ export const apiService = {
     const response = await api.get<ApiSuccessResponse<T>>(url, { params })
     console.log(`API Service - Réponse GET ${url}:`, response)
     return (response as unknown as ApiSuccessResponse<T>).data
+  },
+  
+  // Namespace pour l'authentification
+  auth: {
+    signup: async (data: SignupData): Promise<AuthResponse> => {
+      console.log(`API Service - Inscription avec données:`, { ...data, password: '[MASQUÉ]' })
+      const response = await api.post<ApiSuccessResponse<AuthResponse>>('/signup', data)
+      console.log(`API Service - Réponse inscription:`, response)
+      return (response as unknown as ApiSuccessResponse<AuthResponse>).data
+    },
+    
+    login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+      console.log(`API Service - Connexion avec email:`, credentials.email)
+      const response = await api.post<ApiSuccessResponse<AuthResponse>>('/login', credentials)
+      console.log(`API Service - Réponse connexion:`, response)
+      return (response as unknown as ApiSuccessResponse<AuthResponse>).data
+    },
+    
+    logout: async (): Promise<void> => {
+      console.log(`API Service - Déconnexion`)
+      await api.post('/logout')
+      console.log(`API Service - Déconnexion réussie`)
+    },
+    
+    verifyToken: async (): Promise<{ user: any }> => {
+      console.log(`API Service - Vérification du token`)
+      const response = await api.post<ApiSuccessResponse<{ user: any }>>('/verify-token')
+      console.log(`API Service - Réponse vérification du token:`, response)
+      return (response as unknown as ApiSuccessResponse<{ user: any }>).data
+    }
   },
   
   // Namespace pour les opérations liées aux recettes

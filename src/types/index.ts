@@ -191,3 +191,15 @@ export interface ApiErrorResponse {
   status?: number
   errors?: Record<string, string>
 }
+
+export interface SignupForm {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword?: string;
+  preferences?: {
+    language?: string;
+    theme?: string;
+    [key: string]: any;
+  };
+}

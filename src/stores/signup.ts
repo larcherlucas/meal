@@ -1,18 +1,32 @@
+// src/stores/signup.ts
+
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { useAuthStore } from './auth';
 import { useUserPreferencesStore } from './userPreferences';
 import { useNotificationStore } from './NotificationStore';
-import { apiService } from '../api/config';
 import { navigateTo } from '@/utils/router-helpers';
-import type { SignupForm, ApiErrorResponse } from '../types';
+import type { SignupData, ApiErrorResponse } from '@/types';
+
+// Interface spécifique pour le formulaire d'inscription, adaptée à votre implémentation
+export interface SignupForm {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword?: string;
+  preferences?: {
+    language?: string;
+    theme?: string;
+    [key: string]: any;
+  };
+}
 
 export const useSignupStore = defineStore('signup', () => {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
   const fieldErrors = ref<Record<string, string>>({});
   const signupSuccess = ref(false);
-  const attemptCount = ref(0); // Nouveau: compter les tentatives d'inscription
+  const attemptCount = ref(0); // Compteur de tentatives d'inscription
 
   const resetState = () => {
     isLoading.value = false;
@@ -33,9 +47,11 @@ export const useSignupStore = defineStore('signup', () => {
     attemptCount.value++; // Incrémente le compteur de tentatives
     
     const notificationStore = useNotificationStore();
+    const authStore = useAuthStore();
+    const preferencesStore = useUserPreferencesStore();
 
     try {
-      const payload = {
+      const payload: SignupData = {
         username: formData.username,
         email: formData.email.trim().toLowerCase(), // Normalisation de l'email
         password: formData.password,
@@ -52,23 +68,11 @@ export const useSignupStore = defineStore('signup', () => {
         console.log('Envoi de la requête d\'inscription:', { ...payload, password: '[MASQUÉ]' });
       }
       
-      const response = await apiService.auth.signup(payload);
+      // Utilisation de la méthode signup du store d'authentification
+      const success = await authStore.signup(payload);
       
-      // Gestion de la réponse réussie avec une meilleure détection du format de réponse
-      if (response?.data) {
-        const responseData = response.data?.data || response.data;
-        const token = responseData.token;
-        const user = responseData.user;
-        
-        if (!token || !user) {
-          throw new Error('Format de réponse incomplet: token ou user manquant');
-        }
-        
-        // Mise à jour des stores
-        const authStore = useAuthStore();
-        authStore.setSession(token, user);
-        const preferencesStore = useUserPreferencesStore();
-        
+      if (success) {
+        // Initialiser les préférences à partir du store d'authentification
         preferencesStore.initFromAuthStore();
         
         signupSuccess.value = true;
@@ -93,7 +97,14 @@ export const useSignupStore = defineStore('signup', () => {
         return true;
       }
       
-      throw new Error('Format de réponse invalide');
+      // Si authStore.signup n'a pas retourné true mais n'a pas lancé d'erreur
+      if (authStore.error) {
+        error.value = authStore.error;
+      } else {
+        error.value = 'Échec de l\'inscription pour une raison inconnue';
+      }
+      
+      return false;
     } catch (err: any) {
       console.error('Erreur lors de l\'inscription:', err);
       
@@ -139,11 +150,11 @@ export const useSignupStore = defineStore('signup', () => {
           break;
           
         case 400: // Mauvaise requête
-          error.value = errorResponse?.message || 'Données d\'inscription invalides';
+          error.value = errorResponse?.error || 'Données d\'inscription invalides';
           break;
           
         case 422: // Validation échouée
-          error.value = errorResponse?.message || 'Veuillez vérifier les informations saisies';
+          error.value = errorResponse?.error || 'Veuillez vérifier les informations saisies';
           break;
           
         case 500: // Erreur serveur
@@ -165,7 +176,7 @@ export const useSignupStore = defineStore('signup', () => {
           break;
           
         default:
-          error.value = errorResponse?.message || `Une erreur est survenue lors de l'inscription (${status})`;
+          error.value = errorResponse?.error || `Une erreur est survenue lors de l'inscription (${status})`;
       }
     } 
     // Erreur réseau ou autre
