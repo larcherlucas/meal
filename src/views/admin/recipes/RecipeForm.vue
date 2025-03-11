@@ -533,52 +533,73 @@ import { useRouter, useRoute } from 'vue-router'
   }
   
   async function saveRecipe() {
-    if (!formValid.value) {
-      notificationStore.error('Veuillez remplir tous les champs obligatoires')
-      return
-    }
-    
-    isSaving.value = true
-    error.value = ''
-    
-    try {
-      // S'assurer que les champs numériques sont des nombres
-      const recipeToSave = {
-        ...recipeData.value,
-        prep_time: Number(recipeData.value.prep_time),
-        cook_time: Number(recipeData.value.cook_time),
-        servings: Number(recipeData.value.servings)
-      }
-      
-      let result
-      
-      if (isEditMode.value && recipeId.value) {
-        // Mode édition
-        result = await adminRecipeStore.updateRecipe(recipeId.value, recipeToSave)
-      } else {
-        // Mode création
-        result = await adminRecipeStore.createRecipe(recipeToSave)
-      }
-      
-      if (result) {
-        notificationStore.success(
-          isEditMode.value
-            ? 'Recette mise à jour avec succès'
-            : 'Recette créée avec succès'
-        )
-        
-        // Redirection vers la liste des recettes
-        router.push('/admin/recipes')
-      } else {
-        throw new Error('Une erreur est survenue lors de l\'enregistrement')
-      }
-    } catch (err: any) {
-      error.value = err.message || 'Erreur lors de l\'enregistrement de la recette'
-      notificationStore.error('Erreur lors de l\'enregistrement de la recette')
-    } finally {
-      isSaving.value = false
-    }
+  if (!formValid.value) {
+    notificationStore.error('Veuillez remplir tous les champs obligatoires')
+    return
   }
+  
+  isSaving.value = true
+  error.value = ''
+  
+  try {
+    // Corriger les étapes avant de les envoyer
+    const correctedSteps = recipeData.value.steps.map(step => {
+      return {
+        order: step.order,
+        description: typeof step.description === 'object' 
+          ? JSON.stringify(step.description) 
+          : String(step.description)
+      }
+    })
+    
+    // Structurer les ingrédients et les étapes au format attendu par la BD
+    const formattedIngredients = {
+      ingredients: recipeData.value.ingredients
+    }
+    
+    const formattedSteps = {
+      steps: correctedSteps
+    }
+    
+    // S'assurer que les champs numériques sont des nombres
+    const recipeToSave = {
+      ...recipeData.value,
+      prep_time: Number(recipeData.value.prep_time),
+      cook_time: Number(recipeData.value.cook_time),
+      servings: Number(recipeData.value.servings),
+      ingredients: formattedIngredients,
+      steps: formattedSteps
+    }
+    
+    let result
+    
+    if (isEditMode.value && recipeId.value) {
+      // Mode édition
+      result = await adminRecipeStore.updateRecipe(recipeId.value, recipeToSave)
+    } else {
+      // Mode création
+      result = await adminRecipeStore.createRecipe(recipeToSave)
+    }
+    
+    if (result) {
+      notificationStore.success(
+        isEditMode.value
+          ? 'Recette mise à jour avec succès'
+          : 'Recette créée avec succès'
+      )
+      
+      // Redirection vers la liste des recettes
+      router.push('/admin/recipes')
+    } else {
+      throw new Error('Une erreur est survenue lors de l\'enregistrement')
+    }
+  } catch (err) {
+    error.value = err.message || 'Erreur lors de l\'enregistrement de la recette'
+    notificationStore.error('Erreur lors de l\'enregistrement de la recette')
+  } finally {
+    isSaving.value = false
+  }
+}
   
   async function publishRecipe() {
     if (!formValid.value) {

@@ -181,21 +181,36 @@ async function fetchRecipeById(id) {
     error.value = null
     
     try {
-      const response = await apiService.put(`/admin/recipes/${id}`, recipeData)
+      const response = await apiService.patch(`/admin/recipes/${id}`, recipeData)
       
-      if (response && response.data) {
-        notificationStore.success('Recette mise à jour avec succès')
+      // Modification ici pour accepter plusieurs formats de réponse valides
+      if (response) {
+        let updatedRecipe = null;
         
-        // Mettre à jour la liste locale si la recette est présente
-        const index = recipes.value.findIndex(r => r.id === id)
-        if (index !== -1) {
-          recipes.value[index] = response.data
+        // Format 1: {data: ...}
+        if (response.data) {
+          updatedRecipe = response.data;
+        } 
+        // Format 2: l'objet lui-même est la recette
+        else if (response.id) {
+          updatedRecipe = response;
         }
         
-        return response.data
-      } else {
-        throw new Error('Format de réponse API incorrect')
+        if (updatedRecipe) {
+          notificationStore.success('Recette mise à jour avec succès')
+          
+          // Mettre à jour la liste locale si la recette est présente
+          const index = recipes.value.findIndex(r => r.id === id)
+          if (index !== -1) {
+            recipes.value[index] = updatedRecipe
+          }
+          
+          return updatedRecipe
+        }
       }
+      
+      // Si aucun format valide n'est trouvé
+      throw new Error('Format de réponse API incorrect')
     } catch (err: any) {
       handleError(err, `Erreur lors de la mise à jour de la recette #${id}`)
       return null

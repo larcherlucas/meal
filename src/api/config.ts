@@ -75,10 +75,20 @@ api.interceptors.request.use(
 )
 
 // Intercepteur de réponses avec gestion avancée
-// Intercepteur de réponses avec gestion avancée
 api.interceptors.response.use(
   (response: AxiosResponse) => {
     console.log(`Response from ${response.config.url}:`, response.data);
+    
+    // Si la requête concerne un endpoint admin/recipes/:id, on normalise la réponse
+    if (response.config.url && 
+        /\/admin\/recipes\/\d+$/.test(response.config.url) &&
+        response.config.method === 'get') {
+      // Pour les détails d'une recette en admin, on utilise un format normalisé
+      return {
+        status: 'success',
+        data: response.data
+      };
+    }
     
     // Si la réponse est une API admin, préserver la structure complète
     if (response.config.url && response.config.url.includes('/admin')) {
