@@ -154,27 +154,42 @@ async function fetchRecipeById(id) {
   }
 }
   
-  async function createRecipe(recipeData: Partial<AdminRecipe>) {
-    isSaving.value = true
-    error.value = null
+async function createRecipe(recipeData: Partial<AdminRecipe>) {
+  isSaving.value = true
+  error.value = null
+  
+  try {
+    const response = await apiService.post('/admin/recipes', recipeData)
     
-    try {
-      const response = await apiService.post('/admin/recipes', recipeData)
+    // Accepter plusieurs formats de réponse valides
+    if (response) {
+      let createdRecipe = null;
       
-      if (response && response.data) {
-        notificationStore.success('Recette créée avec succès')
-        return response.data
-      } else {
-        throw new Error('Format de réponse API incorrect')
+      // Format 1: {data: ...}
+      if (response.data) {
+        createdRecipe = response.data;
+      } 
+      // Format 2: l'objet lui-même est la recette
+      else if (response.id) {
+        createdRecipe = response;
       }
-    } catch (err: any) {
-      handleError(err, 'Erreur lors de la création de la recette')
-      return null
-    } finally {
-      isSaving.value = false
-      clearDraft()
+      
+      if (createdRecipe) {
+        notificationStore.success('Recette créée avec succès')
+        return createdRecipe
+      }
     }
+    
+    // Si aucun format valide n'est trouvé
+    throw new Error('Format de réponse API incorrect')
+  } catch (err: any) {
+    handleError(err, 'Erreur lors de la création de la recette')
+    return null
+  } finally {
+    isSaving.value = false
+    clearDraft()
   }
+}
   
   async function updateRecipe(id: number, recipeData: Partial<AdminRecipe>) {
     isSaving.value = true
