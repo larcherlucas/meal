@@ -194,12 +194,12 @@ const toggleCache = () => {
 
 // Nouvelles fonctions d'administration
 const createRecipe = () => {
-  router.push('/recipes/create');
+  router.push('/admin/recipes/create');
 }
 
 const editRecipe = (recipe, event) => {
   event.stopPropagation();
-  router.push(`/recipes/${recipe.id}/edit`);
+  router.push(`/admin/recipes/${recipe.id}/edit`);
 }
 
 const deleteRecipe = async (recipe, event) => {

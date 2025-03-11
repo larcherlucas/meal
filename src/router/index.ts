@@ -41,6 +41,15 @@ const checkAuth = async (
     return next({ path: '/subscription' })
   }
 
+  // Vérifier si la route nécessite un rôle admin
+  if (to.meta.requiresAdmin && authStore.user?.role !== 'admin') {
+    notificationStore.show({
+      type: 'error',
+      message: 'Cette section est réservée aux administrateurs.'
+    })
+    return next({ path: '/home' })
+  }
+
   // Si l'utilisateur est connecté et tente d'accéder à la landing page ou aux pages d'auth
   if (authStore.isAuthenticated && (
     to.path === '/' || 
@@ -135,6 +144,46 @@ const router = createRouter({
       name: 'subscription',
       component: () => import('@/views/SubscriptionView.vue'),
       meta: { requiresAuth: true }
+    },
+    // Routes d'administration
+    {
+      path: '/admin',
+      component: () => import('@/views/admin/AdminLayout.vue'),
+      meta: { 
+        requiresAuth: true,
+        requiresAdmin: true // Nouveau meta pour vérifier le rôle admin
+      },
+      children: [
+        {
+          path: '',
+          name: 'admin-dashboard',
+          component: () => import('@/views/admin/AdminDashboard.vue'),
+        },
+        {
+          path: 'recipes',
+          name: 'admin-recipes',
+          component: () => import('@/views/admin/recipes/RecipesList.vue').catch(() => {
+            console.error('Erreur lors du chargement du composant RecipesList');
+            return import('@/views/admin/NotFoundView.vue');
+          }),
+        },
+        {
+          path: 'recipes/create',
+          name: 'admin-recipe-create',
+          component: () => import('@/views/admin/recipes/RecipeForm.vue'),
+        },
+        {
+          path: 'recipes/:id/edit',
+          name: 'admin-recipe-edit',
+          component: () => import('@/views/admin/recipes/RecipeForm.vue'),
+          props: true
+        },
+        {
+          path: 'cache',
+          name: 'admin-cache',
+          component: () => import('@/views/admin/CacheManagement.vue'),
+        }
+      ]
     }
   ],
   // Remonter en haut de page à chaque changement de route

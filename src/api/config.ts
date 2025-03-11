@@ -75,41 +75,74 @@ api.interceptors.request.use(
 )
 
 // Intercepteur de réponses avec gestion avancée
+// Intercepteur de réponses avec gestion avancée
 api.interceptors.response.use(
   (response: AxiosResponse) => {
     console.log(`Response from ${response.config.url}:`, response.data);
-    // Si la réponse est déjà dans le format attendu, la retourner telle quelle
-    if (response.data && response.data.status === 'success') {
-      return response.data
+    
+    // Si la réponse est une API admin, préserver la structure complète
+    if (response.config.url && response.config.url.includes('/admin')) {
+      // Pour les endpoints admin, on préserve la structure exacte
+      return response.data;
     }
     
-    // Sinon, normaliser la structure
+    // Si la réponse est déjà dans le format attendu avec status: success
+    if (response.data && response.data.status === 'success') {
+      return response.data;
+    }
+    
+    // Pour les réponses avec des métadonnées importantes (totalCount, pagination, etc.)
+    if (response.data && typeof response.data === 'object') {
+      // Si la réponse a déjà une propriété data et d'autres métadonnées
+      if (response.data.data && (
+          response.data.totalCount !== undefined || 
+          response.data.pagination !== undefined ||
+          response.data.meta !== undefined
+      )) {
+        // Retourner la structure complète
+        return {
+          status: 'success',
+          data: response.data.data,
+          totalCount: response.data.totalCount,
+          pagination: response.data.pagination,
+          meta: response.data.meta
+        };
+      }
+      
+      // Si c'est un tableau ou un objet simple sans structure particulière
+      return {
+        status: 'success',
+        data: response.data
+      };
+    }
+    
+    // Fallback pour les autres types de réponses
     return {
       status: 'success',
       data: response.data
-    }
+    };
   },
   async (error: AxiosError) => {
-    const notificationStore = useNotificationStore()
-    const authStore = useAuthStore()
-    const originalRequest = error.config as AxiosRequestConfig & { _retry?: number }
+    const notificationStore = useNotificationStore();
+    const authStore = useAuthStore();
+    const originalRequest = error.config as AxiosRequestConfig & { _retry?: number };
     
     // Cas où il n'y a pas de réponse (erreur réseau)
     if (!error.response) {
       notificationStore.error(
         'Erreur de connexion',
         'Problème de connexion réseau. Veuillez vérifier votre connexion Internet.'
-      )
-      return Promise.reject(new ApiError('Problème de connexion réseau'))
+      );
+      return Promise.reject(new ApiError('Problème de connexion réseau'));
     }
 
-    const status = error.response.status
-    const errorData = error.response.data as ApiErrorResponse | string
+    const status = error.response.status;
+    const errorData = error.response.data as ApiErrorResponse | string;
     
     // Extraction du message d'erreur
     const errorMessage = typeof errorData === 'string' 
       ? errorData 
-      : errorData.error || 'Une erreur est survenue'
+      : errorData.error || 'Une erreur est survenue';
     
     // Gestion des erreurs 401 (non authentifié)
     if (status === 401) {
@@ -118,21 +151,21 @@ api.interceptors.response.use(
         notificationStore.error(
           'Session expirée', 
           'Votre session a expiré. Veuillez vous reconnecter.'
-        )
+        );
       }
       
       // Déconnecter l'utilisateur et rediriger vers la page de login
-      await authStore.logout(false) // false = ne pas appeler l'API logout
+      await authStore.logout(false); // false = ne pas appeler l'API logout
       
       // Rediriger sauf si on est déjà sur login
       if (router.currentRoute.value.path !== '/login') {
         router.push({ 
           path: '/login', 
           query: { session: 'expired', redirect: router.currentRoute.value.fullPath }
-        })
+        });
       }
       
-      return Promise.reject(new ApiError(errorMessage, status))
+      return Promise.reject(new ApiError(errorMessage, status));
     }
     
     // Gestion des erreurs 403 (accès interdit)
@@ -140,15 +173,15 @@ api.interceptors.response.use(
       notificationStore.error(
         'Accès refusé',
         'Vous n\'avez pas les permissions nécessaires pour effectuer cette action.'
-      )
+      );
       
       // Si l'erreur concerne un abonnement requis, rediriger vers la page d'abonnement
       if (errorMessage.toLowerCase().includes('abonnement') || 
           errorMessage.toLowerCase().includes('premium')) {
-        router.push('/subscription')
+        router.push('/subscription');
       }
       
-      return Promise.reject(new ApiError(errorMessage, status))
+      return Promise.reject(new ApiError(errorMessage, status));
     }
     
     // Gestion des erreurs 404 (ressource non trouvée)
@@ -173,8 +206,8 @@ api.interceptors.response.use(
       notificationStore.error(
         'Conflit',
         errorMessage
-      )
-      return Promise.reject(new ApiError(errorMessage, status))
+      );
+      return Promise.reject(new ApiError(errorMessage, status));
     }
     
     // Gestion des erreurs 422 (validation)
@@ -182,18 +215,18 @@ api.interceptors.response.use(
       // Extraire les erreurs de validation
       const validationErrors = typeof errorData === 'object' && errorData.errors 
         ? errorData.errors 
-        : {}
+        : {};
       
       notificationStore.error(
         'Erreur de validation',
         Object.values(validationErrors).join(', ') || errorMessage
-      )
+      );
       
       return Promise.reject(new ApiError(
         errorMessage, 
         status, 
         validationErrors
-      ))
+      ));
     }
     
     // Gestion générique des erreurs serveur (5xx)
@@ -201,39 +234,39 @@ api.interceptors.response.use(
       notificationStore.error(
         'Erreur serveur',
         'Une erreur est survenue sur notre serveur. Veuillez réessayer ultérieurement.'
-      )
+      );
       
       // Tentative de retry pour les erreurs serveur
       if (!originalRequest._retry) {
-        originalRequest._retry = 1
+        originalRequest._retry = 1;
         
         return new Promise(resolve => {
           setTimeout(() => {
-            resolve(api(originalRequest))
-          }, RETRY_DELAY)
-        })
+            resolve(api(originalRequest));
+          }, RETRY_DELAY);
+        });
       } else if (originalRequest._retry < MAX_RETRIES) {
-        originalRequest._retry++
+        originalRequest._retry++;
         
         return new Promise(resolve => {
           setTimeout(() => {
-            resolve(api(originalRequest))
-          }, RETRY_DELAY * originalRequest._retry)
-        })
+            resolve(api(originalRequest));
+          }, RETRY_DELAY * originalRequest._retry);
+        });
       }
       
-      return Promise.reject(new ApiError(errorMessage, status))
+      return Promise.reject(new ApiError(errorMessage, status));
     }
     
     // Autres erreurs non traitées
     notificationStore.error(
       'Erreur',
       errorMessage
-    )
+    );
     
-    return Promise.reject(new ApiError(errorMessage, status))
+    return Promise.reject(new ApiError(errorMessage, status));
   }
-)
+);
 
 // Méthodes utilitaires génériques avec typage fort
 export const apiService = {
