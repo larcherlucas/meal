@@ -422,24 +422,142 @@ async function createRecipe(recipeData: Partial<AdminRecipe>) {
   // Fonctions pour le tableau de bord
   async function fetchDashboardStats() {
     try {
-      const response = await apiService.get('/admin/dashboard/stats')
-      return response.data
-    } catch (err: any) {
-      handleError(err, 'Erreur lors du chargement des statistiques')
-      return null
+      const response = await apiService.get('/admin/dashboard/stats');
+      return response.data || {
+        totalRecipes: 0,
+        recipesTrend: 0,
+        activeUsers: 0,
+        usersTrend: 0,
+        premiumUsers: 0,
+        premiumTrend: 0,
+        cacheRatio: 0,
+        cacheHits: 0,
+        cacheMisses: 0
+      };
+    } catch (err) {
+      handleError(err, 'Erreur lors du chargement des statistiques');
+      return null;
     }
   }
   
   async function fetchRecentRecipes(limit = 5) {
     try {
-      const response = await apiService.get('/admin/recipes/recent', { limit })
-      return response.data
-    } catch (err: any) {
-      handleError(err, 'Erreur lors du chargement des recettes récentes')
-      return []
+      const response = await apiService.get('/admin/recipes/recent', { limit });
+      return response.data || [];
+    } catch (err) {
+      handleError(err, 'Erreur lors du chargement des recettes récentes');
+      return [];
     }
   }
-  
+  /**
+   * Récupère les statistiques du cache depuis le backend
+   */
+  async function getCacheStats() {
+    try {
+      // Appel à un endpoint API dédié pour récupérer les stats du cache
+      const response = await apiService.get('/admin/cache/stats')
+      
+      // Retourner les statistiques du cache
+      return response.data || {
+        hits: 0,
+        misses: 0,
+        keys: 0,
+        hitRatio: 0
+      }
+    } catch (err) {
+      console.error('Erreur lors de la récupération des statistiques du cache:', err)
+      // Retourner des statistiques par défaut en cas d'erreur
+      return {
+        hits: 0,
+        misses: 0,
+        keys: 0,
+        hitRatio: 0
+      }
+    }
+  }
+
+  /**
+   * Vide le cache, en entier ou par type
+   */
+  async function clearCache(type = null) {
+    try {
+      // Appel à un endpoint API dédié pour vider le cache
+      if (type) {
+        // Si un type est spécifié, vider uniquement ce type de cache
+        const response = await apiService.post('/admin/cache/clear', { type })
+        return response.data
+      } else {
+        // Sinon, vider tout le cache
+        const response = await apiService.post('/admin/cache/clear-all')
+        return response.data
+      }
+    } catch (err) {
+      console.error('Erreur lors du vidage du cache:', err)
+      throw err
+    }
+  }
+/**
+ * Récupérer les clés en cache
+ * @returns {Array} - Liste des entrées en cache
+ */
+async function getCacheEntries() {
+  try {
+    const response = await apiService.get('/admin/cache/keys')
+    return response.data || []
+  } catch (err) {
+    console.error('Erreur lors de la récupération des entrées du cache:', err)
+    error.value = err.message || 'Erreur lors de la récupération des entrées du cache'
+    throw err
+  }
+}
+
+/**
+ * Supprimer une entrée spécifique du cache
+ * @param {string} key - Clé à supprimer
+ * @returns {Object} - Résultat de l'opération
+ */
+async function removeCacheEntry(key) {
+  try {
+    const response = await apiService.delete(`/admin/cache/keys/${key}`)
+    return response.data
+  } catch (err) {
+    console.error(`Erreur lors de la suppression de l'entrée "${key}" du cache:`, err)
+    error.value = err.message || `Erreur lors de la suppression de l'entrée du cache`
+    throw err
+  }
+}
+
+/**
+ * Mettre à jour la durée de vie du cache
+ * @param {number} duration - Nouvelle durée de vie en minutes
+ * @returns {Object} - Résultat de l'opération
+ */
+async function updateCacheDuration(duration) {
+  try {
+    const response = await apiService.patch('/admin/cache/ttl', { duration })
+    return response.data
+  } catch (err) {
+    console.error('Erreur lors de la mise à jour de la durée de vie du cache:', err)
+    error.value = err.message || 'Erreur lors de la mise à jour de la durée de vie du cache'
+    throw err
+  }
+}
+
+/**
+ * Activer ou désactiver le cache
+ * @param {boolean} enabled - État d'activation du cache
+ * @returns {Object} - Résultat de l'opération
+ */
+async function toggleCache(enabled) {
+  try {
+    const response = await apiService.patch('/admin/cache/toggle', { enabled })
+    return response.data
+  } catch (err) {
+    console.error(`Erreur lors du ${enabled ? 'l\'activation' : 'la désactivation'} du cache:`, err)
+    error.value = err.message || `Erreur lors du ${enabled ? 'l\'activation' : 'la désactivation'} du cache`
+    throw err
+  }
+}
   // Initialiser le store
   function initialize() {
     loadDraft()
@@ -457,6 +575,13 @@ async function createRecipe(recipeData: Partial<AdminRecipe>) {
     modificationHistory,
     pagination,
     filters,
+    saveToHistory,
+    getCacheStats,
+    clearCache,
+    getCacheEntries,
+    removeCacheEntry,
+    updateCacheDuration,
+    toggleCache,
     
     // Getters
     totalPages,

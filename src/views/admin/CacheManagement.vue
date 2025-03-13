@@ -220,8 +220,10 @@
   
   <script setup lang="ts">
   import { ref, computed, onMounted } from 'vue'
-  import { useRecipeStore } from '@/stores/recipeStore'
+  import { useAdminRecipeStore } from '@/stores/adminRecipeStore'
+  import { useRouter } from 'vue-router'
   import { useNotificationStore } from '@/stores/NotificationStore'
+  import { useAuthStore } from '@/stores/auth'
   import {
     ChartBarIcon,
     CheckCircleIcon,
@@ -239,8 +241,10 @@
   })
   
   // Stores
-  const recipeStore = useRecipeStore()
+  const recipeStore = useAdminRecipeStore()
   const notificationStore = useNotificationStore()
+  const authStore = useAuthStore()
+  const router = useRouter()
   
   // États
   const isLoading = ref(false)
@@ -268,57 +272,51 @@
   
   // Méthodes
   const fetchCacheStats = async () => {
-    isLoading.value = true
-    
-    try {
-      const stats = await recipeStore.getCacheStats()
-      cacheStats.value = {
-        hitRatio: Math.round(stats.hitRatio * 100),
-        hits: stats.hits,
-        misses: stats.misses,
-        keys: stats.keys
-      }
-    } catch (error) {
-      console.error('Erreur lors de la récupération des statistiques du cache:', error)
-      notificationStore.error('Erreur lors de la récupération des statistiques du cache')
-    } finally {
-      isLoading.value = false
-    }
-  }
+  isLoading.value = true
   
-  const fetchCacheEntries = async () => {
-    isLoading.value = true
-    
-    try {
-      // Simuler les entrées du cache pour l'exemple
-      // Dans une implémentation réelle, cela proviendrait de l'API
-      const now = new Date()
-      const mockEntries = [
-        {
-          key: 'recipe_1',
-          type: 'Recette',
-          expiration: new Date(now.getTime() + 15 * 60 * 1000)
-        },
-        {
-          key: 'recipe_list_all',
-          type: 'Liste',
-          expiration: new Date(now.getTime() + 10 * 60 * 1000)
-        },
-        {
-          key: 'recipe_categories',
-          type: 'Configuration',
-          expiration: new Date(now.getTime() + 30 * 60 * 1000)
-        }
-      ]
-      
-      cacheEntries.value = mockEntries
-    } catch (error) {
-      console.error('Erreur lors de la récupération des entrées du cache:', error)
-      notificationStore.error('Erreur lors de la récupération des entrées du cache')
-    } finally {
-      isLoading.value = false
+  try {
+    const stats = await recipeStore.getCacheStats()
+    cacheStats.value = {
+      hitRatio: Math.round(stats.hitRatio * 100),
+      hits: stats.hits,
+      misses: stats.misses,
+      keys: stats.keys
     }
+  } catch (error) {
+    console.error('Erreur lors de la récupération des statistiques du cache:', error)
+    
+    // Vérifier si c'est une erreur d'accès
+    if (error.status === 403 || (error.message && error.message.includes('Accès interdit'))) {
+      notificationStore.error('Accès refusé', 'Vous n\'avez pas les permissions nécessaires pour gérer le cache')
+      router.push('/dashboard') // Rediriger vers une page accessible
+    } else {
+      notificationStore.error('Erreur lors de la récupération des statistiques du cache')
+    }
+  } finally {
+    isLoading.value = false
   }
+}
+  
+const fetchCacheEntries = async () => {
+  isLoading.value = true
+  
+  try {
+    const entries = await recipeStore.getCacheEntries()
+    cacheEntries.value = entries
+  } catch (error) {
+    console.error('Erreur lors de la récupération des entrées du cache:', error)
+    
+    // Vérifier si c'est une erreur d'accès
+    if (error.status === 403 || (error.message && error.message.includes('Accès interdit'))) {
+      notificationStore.error('Accès refusé', 'Vous n\'avez pas les permissions nécessaires pour gérer le cache')
+      router.push('/dashboard') // Rediriger vers une page accessible
+    } else {
+      notificationStore.error('Erreur lors de la récupération des entrées du cache')
+    }
+  } finally {
+    isLoading.value = false
+  }
+}
   
   const refreshCacheStats = async () => {
     await fetchCacheStats()
@@ -357,49 +355,50 @@
   }
   
   const removeCacheEntry = async (key: string) => {
-    isLoading.value = true
-    
-    try {
-      // Dans une implémentation réelle, cela appellerait une méthode du store
-      cacheEntries.value = cacheEntries.value.filter(entry => entry.key !== key)
-      notificationStore.success(`Entrée "${key}" supprimée du cache`)
-    } catch (error) {
-      console.error(`Erreur lors de la suppression de l'entrée "${key}" du cache:`, error)
-      notificationStore.error(`Erreur lors de la suppression de l'entrée du cache`)
-    } finally {
-      isLoading.value = false
-    }
-  }
+  isLoading.value = true
   
-  const updateCacheDuration = async () => {
-    isLoading.value = true
-    
-    try {
-      // Dans une implémentation réelle, cela appellerait une méthode du store
-      notificationStore.success(`Durée du cache mise à jour à ${cacheDuration.value} minutes`)
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour de la durée du cache:', error)
-      notificationStore.error('Erreur lors de la mise à jour de la durée du cache')
-    } finally {
-      isLoading.value = false
-    }
+  try {
+    await recipeStore.removeCacheEntry(key)
+    // Rafraîchir les entrées après la suppression
+    await fetchCacheEntries()
+    notificationStore.success(`Entrée "${key}" supprimée du cache`)
+  } catch (error) {
+    console.error(`Erreur lors de la suppression de l'entrée "${key}" du cache:`, error)
+    notificationStore.error(`Erreur lors de la suppression de l'entrée du cache`)
+  } finally {
+    isLoading.value = false
   }
+}
   
-  const toggleCache = async () => {
-    isLoading.value = true
-    
-    try {
-      // Dans une implémentation réelle, cela appellerait une méthode du store
-      notificationStore.success(`Cache ${cacheEnabled.value ? 'activé' : 'désactivé'}`)
-    } catch (error) {
-      console.error(`Erreur lors du ${cacheEnabled.value ? 'l\'activation' : 'la désactivation'} du cache:`, error)
-      notificationStore.error(`Erreur lors du ${cacheEnabled.value ? 'l\'activation' : 'la désactivation'} du cache`)
-      // Restaurer l'état précédent
-      cacheEnabled.value = !cacheEnabled.value
-    } finally {
-      isLoading.value = false
-    }
+const updateCacheDuration = async () => {
+  isLoading.value = true
+  
+  try {
+    await recipeStore.updateCacheDuration(cacheDuration.value)
+    notificationStore.success(`Durée du cache mise à jour à ${cacheDuration.value} minutes`)
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de la durée du cache:', error)
+    notificationStore.error('Erreur lors de la mise à jour de la durée du cache')
+  } finally {
+    isLoading.value = false
   }
+}
+  
+const toggleCache = async () => {
+  isLoading.value = true
+  
+  try {
+    await recipeStore.toggleCache(cacheEnabled.value)
+    notificationStore.success(`Cache ${cacheEnabled.value ? 'activé' : 'désactivé'}`)
+  } catch (error) {
+    console.error(`Erreur lors du ${cacheEnabled.value ? 'l\'activation' : 'la désactivation'} du cache:`, error)
+    notificationStore.error(`Erreur lors du ${cacheEnabled.value ? 'l\'activation' : 'la désactivation'} du cache`)
+    // Restaurer l'état précédent
+    cacheEnabled.value = !cacheEnabled.value
+  } finally {
+    isLoading.value = false
+  }
+}
   
   const formatDate = (date: Date) => {
     return date.toLocaleString('fr-FR', {
@@ -413,9 +412,20 @@
   
   // Charger les données au montage du composant
   onMounted(async () => {
-    await fetchCacheStats()
-    await fetchCacheEntries()
-  })
+  // Affiche les informations de l'utilisateur courant
+  console.log("Informations utilisateur:", authStore.user);
+  console.log("Rôle utilisateur:", authStore.user?.role);
+  console.log("Token JWT:", authStore.token);
+  
+  emit('update:page-title', 'Gestion du cache');
+  
+  try {
+    await fetchCacheStats();
+    await fetchCacheEntries();
+  } catch (error) {
+    console.error("Erreur détaillée:", error);
+  }
+});
   </script>
   
   <style scoped>

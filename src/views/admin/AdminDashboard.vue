@@ -274,7 +274,7 @@
   import RecipeExtractModal from '@/views/admin/recipes/RecipeExtractModal.vue'
   
   // Indiquer au composant parent le titre de la page
-  defineEmits(['update:page-title'])
+  const emit = defineEmits(['update:page-title'])
   onMounted(() => {
     emit('update:page-title', 'Tableau de bord')
   })
