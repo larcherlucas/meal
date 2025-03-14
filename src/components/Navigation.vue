@@ -35,6 +35,18 @@
 
         <!-- Actions à droite -->
         <div class="flex items-center space-x-4">
+          <!-- Bouton Admin (visible seulement pour les admins) -->
+          <router-link
+            v-if="authStore.isAdmin"
+            to="/admin"
+            class="px-4 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+            style="background-color: rgba(89, 2, 2, 0.9); color: rgba(254, 243, 199, 1); --tw-ring-color: rgba(89, 2, 2, 0.5);"
+            :style="{ 'hover:background-color': 'rgba(89, 2, 2, 1)' }"
+          >
+            <ShieldCheckIcon class="h-5 w-5" />
+            <span>Admin</span>
+          </router-link>
+
           <!-- Bouton Theme -->
           <button
             @click="themeStore.toggleTheme"
@@ -86,6 +98,16 @@
                   :style="{ 'hover:background-color': 'rgba(254, 243, 199, 1)', 'hover:color': 'rgba(66, 94, 72, 1)' }"
                 >
                   Mon Profil
+                </router-link>
+                <router-link
+                  v-if="authStore.isAdmin"
+                  to="/admin"
+                  class="block px-4 py-2 text-sm transition-colors"
+                  style="color: rgba(89, 2, 2, 1);"
+                  @click="isProfileMenuOpen = false"
+                  :style="{ 'hover:background-color': 'rgba(254, 243, 199, 1)', 'hover:color': 'rgba(66, 94, 72, 1)' }"
+                >
+                  Administration
                 </router-link>
                 <button
                   @click="handleLogout"
@@ -156,6 +178,23 @@
               {{ item.name }}
             </div>
           </router-link>
+          
+          <!-- Ajout du lien Admin dans le menu mobile (uniquement pour les admins) -->
+          <router-link
+            v-if="authStore.isAdmin"
+            to="/admin"
+            class="block px-4 py-2 text-base transition-colors flex items-center"
+            style="color: rgba(89, 2, 2, 1);"
+            :style="[
+              $route.path.startsWith('/admin')
+                ? { backgroundColor: 'rgba(253, 230, 138, 1)' }
+                : { 'hover:backgroundColor': 'rgba(252, 211, 77, 1)', 'hover:color': 'rgba(66, 94, 72, 1)' }
+            ]"
+            @click="isMenuOpen = false"
+          >
+            <ShieldCheckIcon class="h-5 w-5 mr-2" style="color: rgba(89, 2, 2, 1);" />
+            Administration
+          </router-link>
         </div>
       </div>
     </transition>
@@ -181,7 +220,8 @@ import {
   XMarkIcon,
   UserCircleIcon,
   ChevronDownIcon,
-  BookOpenIcon
+  BookOpenIcon,
+  ShieldCheckIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
