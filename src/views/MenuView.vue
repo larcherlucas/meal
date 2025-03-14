@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, onBeforeMount } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRecipeStore } from '@/stores/recipeStore'
 import { useSubscriptionStore } from '@/stores/subscription'
 import { useFavoriteStore } from '@/stores/favoriteStore'
 import RecipeModal from '@/components/recipe/RecipeModal.vue'
-import { HeartIcon, PencilIcon, TrashIcon, PlusIcon, EllipsisVerticalIcon } from '@heroicons/vue/24/outline'
+import { HeartIcon, PencilIcon, TrashIcon, PlusIcon, EllipsisVerticalIcon, FunnelIcon } from '@heroicons/vue/24/outline'
 import { HeartIcon as HeartSolidIcon } from '@heroicons/vue/24/solid'
 import { useRouter } from 'vue-router' // Importé pour la navigation
+import { apiService } from '@/api/config' // Pour charger les catégories et origines
 
 const authStore = useAuthStore()
 const recipeStore = useRecipeStore()
@@ -17,13 +18,18 @@ const router = useRouter() // Pour la navigation
 
 // État local
 const selectedCategory = ref('Toutes')
+const selectedOrigin = ref('Toutes')
+const selectedAgeCategory = ref('Toutes')
 const selectedRecipe = ref(null)
 const isModalOpen = ref(false)
-const useCache = ref(true) // Nouvel état pour activer/désactiver le cache
+const useCache = ref(true) // État pour activer/désactiver le cache
 const showActionMenu = ref(null) // ID de la recette pour laquelle afficher le menu d'actions
+const showFilters = ref(false) // État pour afficher/masquer les filtres avancés
 
-// Catégories pour le filtre
+// Listes pour les filtres
 const categories = computed(() => ['Toutes', 'Petit-déjeuner', 'Déjeuner', 'Dîner', 'Dessert', 'En-cas'])
+const origins = ref(['Toutes']) // Sera chargé depuis l'API
+const ageCategories = ref(['Toutes', 'toute la famille', 'bébé 6 à 9 mois', 'bébé 9 à 12 mois', 'bébé 12 à 18 mois', 'bébé 18 mois et +', 'enfant'])
 
 // Mapping entre les catégories d'affichage et les meal_types API
 const categoryToMealType = {
@@ -62,6 +68,74 @@ const ensureSubscriptionData = async () => {
   checkAuthAndSubscription();
 }
 
+// Chargement des origines depuis l'API
+// Dans votre composant Vue, modifiez la fonction loadOrigins
+const loadOrigins = async () => {
+  try {
+    console.log('Chargement des origines...');
+    const response = await apiService.get('/recipes/origins');
+    
+    // Vérification de la réponse
+    if (response && response.data && Array.isArray(response.data)) {
+      console.log('Origines récupérées:', response.data);
+      
+      // Correction des caractères potentiellement mal encodés
+      const correctedOrigins = response.data.map(origin => {
+        // Remplacer les caractères problématiques spécifiques si nécessaire
+        return origin
+          .replace('Ã§', 'ç')
+          .replace('Ã©', 'é');
+      });
+      
+      // Ajouter manuellement les origines manquantes pour être certain
+      const allOrigins = [
+        'français',
+        'asiatique',
+        'italien',
+        'méditerranéen',
+        'américain',
+        'mexicain',
+        'indien',
+        'moyen-oriental',
+        'africain',
+        'autre'
+      ];
+      
+      // Fusionner les origines récupérées avec la liste complète et dédupliquer
+      const mergedOrigins = [...new Set([...correctedOrigins, ...allOrigins])];
+      
+      // Trier par ordre alphabétique
+      const sortedOrigins = mergedOrigins.sort();
+      
+      // Ajouter 'Toutes' au début
+      origins.value = ['Toutes', ...sortedOrigins];
+      
+      console.log('Liste finale des origines:', origins.value);
+    } else {
+      console.error('Format de réponse inattendu pour les origines:', response);
+      origins.value = ['Toutes'].concat(defaultOrigins);
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement des origines:', error);
+    
+    // En cas d'erreur, utiliser une liste par défaut
+    const defaultOrigins = [
+      'français',
+      'asiatique', 
+      'italien', 
+      'méditerranéen', 
+      'américain', 
+      'mexicain', 
+      'indien', 
+      'moyen-oriental', 
+      'africain', 
+      'autre'
+    ];
+    
+    origins.value = ['Toutes', ...defaultOrigins];
+  }
+};
+
 // Récupération des recettes filtrées
 const filteredRecipes = computed(() => {
   let recipes = [...recipeStore.recipes]
@@ -83,14 +157,36 @@ const filteredRecipes = computed(() => {
     }
   }
 
+  // Filtrer par origine
+  if (selectedOrigin.value !== 'Toutes') {
+    recipes = recipes.filter(recipe => recipe.origin === selectedOrigin.value)
+  }
+
+  // Filtrer par catégorie d'âge
+  if (selectedAgeCategory.value !== 'Toutes') {
+    recipes = recipes.filter(recipe => recipe.age_category === selectedAgeCategory.value)
+  }
+
   return recipes
 })
 
-// Observer les changements de catégorie et filtrer les recettes
-watch(selectedCategory, (newCategory) => {
-  const mealType = categoryToMealType[newCategory]
-  // Passer le paramètre forceRefresh à false pour utiliser le cache si disponible
-  recipeStore.filterByMealType(mealType, !useCache.value)
+// Observer les changements de filtres et filtrer les recettes
+watch([selectedCategory, selectedOrigin, selectedAgeCategory], () => {
+  const mealType = categoryToMealType[selectedCategory.value]
+  const params = {
+    meal_type: mealType,
+    origin: selectedOrigin.value !== 'Toutes' ? selectedOrigin.value : null,
+    age_category: selectedAgeCategory.value !== 'Toutes' ? selectedAgeCategory.value : null
+  };
+  
+  // Nettoyer les paramètres nuls
+  Object.keys(params).forEach(key => {
+    if (params[key] === null) {
+      delete params[key];
+    }
+  });
+  
+  recipeStore.filterRecipes(params, !useCache.value);
 })
 
 // Gérer les favoris
@@ -153,6 +249,11 @@ const getImageUrl = (imageUrl) => {
   return '/images/default-recipe.jpg'
 }
 
+// Fonction pour basculer l'affichage des filtres avancés
+const toggleAdvancedFilters = () => {
+  showFilters.value = !showFilters.value;
+}
+
 // Cette fonction permet de forcer la mise à jour des informations d'authentification
 // et d'abonnement si nécessaire
 const refreshAuthAndSubscription = async () => {
@@ -160,7 +261,7 @@ const refreshAuthAndSubscription = async () => {
   
   if (authStore.isAuthenticated) {
     try {
-      await authStore.forceSubscriptionSync();
+      await authStore.syncSubscriptionData();
       await subscriptionStore.fetchCurrentPlan()
       console.log("Subscription refreshed:", subscriptionStore.getCurrentPlan?.value)
     } catch (err) {
@@ -233,6 +334,11 @@ const handleModalClose = () => {
 }
 
 // Charger les données au montage du composant
+onBeforeMount(async () => {
+  // Charger les origines avant le reste
+  await loadOrigins();
+})
+
 onMounted(async () => {
   console.log("Component mounted")
   
@@ -300,18 +406,60 @@ onMounted(async () => {
     
     <!-- Filtres -->
     <div class="bento-card">
-      <div class="flex space-x-4 overflow-x-auto pb-2">
-        <button
-          v-for="category in categories"
-          :key="category"
-          @click="selectedCategory = category"
-          class="px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
-          :class="selectedCategory === category ? 
-            'bg-mocha-100 text-mocha-700 dark:bg-mocha-900 dark:text-mocha-100' : 
-            'hover:bg-gray-100 dark:hover:bg-gray-700'"
-        >
-          {{ category }}
-        </button>
+      <div class="flex flex-col space-y-4">
+        <!-- Filtre principal par catégorie de repas -->
+        <div class="flex space-x-4 overflow-x-auto pb-2">
+          <button
+            v-for="category in categories"
+            :key="category"
+            @click="selectedCategory = category"
+            class="px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+            :class="selectedCategory === category ? 
+              'bg-mocha-100 text-mocha-700 dark:bg-mocha-900 dark:text-mocha-100' : 
+              'hover:bg-gray-100 dark:hover:bg-gray-700'"
+          >
+            {{ category }}
+          </button>
+          
+          <!-- Bouton pour afficher les filtres avancés -->
+          <button
+            @click="toggleAdvancedFilters"
+            class="px-4 py-2 rounded-lg transition-colors whitespace-nowrap flex items-center"
+            :class="showFilters ? 
+              'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-100' : 
+              'hover:bg-gray-100 dark:hover:bg-gray-700'"
+          >
+            <FunnelIcon class="h-5 w-5 mr-2" />
+            Filtres avancés
+          </button>
+        </div>
+        
+        <!-- Filtres avancés (origine et âge) -->
+        <div v-if="showFilters" class="px-2 pt-2 pb-2 border-t border-gray-200 dark:border-gray-700">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Filtre par origine -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Origine</label>
+              <select 
+                v-model="selectedOrigin" 
+                class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+              >
+                <option v-for="origin in origins" :key="origin" :value="origin">{{ origin }}</option>
+              </select>
+            </div>
+            
+            <!-- Filtre par âge -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Âge recommandé</label>
+              <select 
+                v-model="selectedAgeCategory" 
+                class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+              >
+                <option v-for="age in ageCategories" :key="age" :value="age">{{ age }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -362,6 +510,22 @@ onMounted(async () => {
               class="bg-amber-500 text-white text-xs px-2 py-1 rounded-full"
             >
               Premium
+            </div>
+            
+            <!-- Badge Age Category -->
+            <div 
+              v-if="recipe.age_category && recipe.age_category !== 'toute la famille'" 
+              class="bg-green-500 text-white text-xs px-2 py-1 rounded-full"
+            >
+              {{ recipe.age_category }}
+            </div>
+            
+            <!-- Badge Origine -->
+            <div 
+              v-if="recipe.origin" 
+              class="bg-blue-500 text-white text-xs px-2 py-1 rounded-full"
+            >
+              {{ recipe.origin }}
             </div>
             
             <!-- Badge de statut (nouveau) -->
@@ -522,3 +686,27 @@ onMounted(async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Style pour les badges */
+.rounded-bento {
+  border-radius: 16px;
+}
+/* Style pour les shadow */
+.shadow-bento {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Style pour les tuiles de recettes */
+.bento-card {
+  @apply bg-white dark:bg-gray-800 rounded-xl shadow p-4 transition-all;
+}
+.bento-card:hover {
+  @apply shadow-lg;
+}
+
+/* Styles pour la navigation */
+.nav-link {
+  @apply px-3 py-2 rounded-md text-sm font-medium;
+}
+</style>
